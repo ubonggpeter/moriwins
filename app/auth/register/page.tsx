@@ -1,14 +1,21 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Logo from '@/components/Logo';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({ username: '', email: '', password: '' });
+  const [refBy, setRefBy] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) setRefBy(ref);
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,7 +26,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ref: refBy || undefined }),
       });
       const data = await res.json();
 
@@ -46,13 +53,24 @@ export default function RegisterPage() {
         </div>
 
         {/* Free credits banner */}
-        <div className="bg-yellow-400/10 border border-yellow-400/20 rounded-2xl px-4 py-3 mb-6 flex items-center gap-3">
+        <div className="bg-yellow-400/10 border border-yellow-400/20 rounded-2xl px-4 py-3 mb-4 flex items-center gap-3">
           <span className="text-2xl">🎁</span>
           <div>
             <p className="text-yellow-400 text-sm font-bold font-mono">$1,000 FREE CREDITS</p>
             <p className="text-white/40 text-xs mt-0.5">Instantly credited on signup</p>
           </div>
         </div>
+
+        {/* Referral notice */}
+        {refBy && (
+          <div className="bg-green-500/10 border border-green-500/20 rounded-2xl px-4 py-3 mb-4 flex items-center gap-3">
+            <span className="text-2xl">🤝</span>
+            <div>
+              <p className="text-green-400 text-sm font-bold">Referred by {refBy}</p>
+              <p className="text-white/40 text-xs mt-0.5">They&apos;ll earn $50 when you join</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

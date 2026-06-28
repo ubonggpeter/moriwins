@@ -8,6 +8,7 @@ interface User {
   username: string;
   email: string;
   balance: number;
+  isAdmin?: boolean;
 }
 
 interface ReferralStats {
@@ -72,8 +73,18 @@ export default function DashboardPage() {
             <p className="text-white/40 text-xs tracking-wider">Welcome back</p>
             <p className="text-white font-bold text-lg mt-0.5">{user?.username ?? '—'}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-[#1c1c1c] border border-white/10 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">{initial}</span>
+          <div className="flex items-center gap-2">
+            {user?.isAdmin && (
+              <Link
+                href="/admin"
+                className="bg-yellow-400 text-black text-xs font-black px-3 py-1.5 rounded-full tracking-wide hover:bg-yellow-300 transition-colors"
+              >
+                ADMIN
+              </Link>
+            )}
+            <div className="w-10 h-10 rounded-full bg-[#1c1c1c] border border-white/10 flex items-center justify-center">
+              <span className="text-white font-bold text-sm">{initial}</span>
+            </div>
           </div>
         </div>
 
@@ -102,27 +113,37 @@ export default function DashboardPage() {
         {/* Referral card */}
         {referral && (
           <div className="bg-[#111111] rounded-2xl p-5 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-white font-bold text-sm">Referral Program</p>
-              <span className="text-green-400 text-xs font-bold">+$50 per referral</span>
-            </div>
-            <div className="bg-[#1a1a1a] rounded-xl px-4 py-3 flex items-center justify-between mb-3">
-              <span className="text-white/40 text-xs font-mono">{referral.referralCode}</span>
-              <button
-                onClick={copyReferralLink}
-                className="text-white text-xs font-bold bg-white/10 px-3 py-1 rounded-full hover:bg-white/20"
-              >
-                {copied ? '✓ Copied!' : 'Copy Link'}
-              </button>
-            </div>
-            <div className="flex gap-6">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-white font-bold">{referral.totalReferrals}</p>
-                <p className="text-white/30 text-xs">Referrals</p>
+                <p className="text-white font-bold text-sm">Invite Friends</p>
+                <p className="text-white/30 text-xs mt-0.5">Earn $50 for every signup</p>
+              </div>
+              <span className="bg-green-500/15 text-green-400 text-xs font-black px-3 py-1 rounded-full">+$50</span>
+            </div>
+
+            {/* Link display */}
+            <div className="bg-[#1a1a1a] rounded-xl p-4 mb-4">
+              <p className="text-white/30 text-[10px] uppercase tracking-wider mb-1">Your referral link</p>
+              <p className="text-white text-xs font-mono break-all leading-relaxed">{referral.referralLink}</p>
+            </div>
+
+            <button
+              onClick={copyReferralLink}
+              className={`w-full font-bold text-sm py-3 rounded-full transition-colors mb-4 ${
+                copied ? 'bg-green-500 text-black' : 'bg-white text-black hover:bg-gray-100'
+              }`}
+            >
+              {copied ? '✓ Link Copied!' : 'Copy Referral Link'}
+            </button>
+
+            <div className="flex gap-6 pt-3 border-t border-white/[0.06]">
+              <div>
+                <p className="text-white font-black text-xl">{referral.totalReferrals}</p>
+                <p className="text-white/30 text-xs mt-0.5">Referrals</p>
               </div>
               <div>
-                <p className="text-green-400 font-bold font-mono">${referral.referralEarnings}</p>
-                <p className="text-white/30 text-xs">Earned</p>
+                <p className="text-green-400 font-black text-xl font-mono">${referral.referralEarnings.toLocaleString()}</p>
+                <p className="text-white/30 text-xs mt-0.5">Earned</p>
               </div>
             </div>
           </div>

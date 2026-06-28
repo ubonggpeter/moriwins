@@ -43,9 +43,9 @@ export async function POST(request: Request) {
       totalGameWinnings: 0,
     });
 
-    // Handle referral bonus
+    // Handle referral bonus — ref param is the referrer's username
     if (incomingRef) {
-      const referrer = await getUserByReferralCode(String(incomingRef));
+      const referrer = await getUserByUsername(String(incomingRef)) ?? await getUserByReferralCode(String(incomingRef));
       if (referrer && referrer.id !== userId) {
         await sql`UPDATE users SET balance = balance + 50, referral_earnings = referral_earnings + 50 WHERE id = ${referrer.id}`;
         await sql`INSERT INTO referrals (id, referrer_id, referred_id, bonus_paid) VALUES (${uuidv4()}, ${referrer.id}, ${userId}, 50)`;
