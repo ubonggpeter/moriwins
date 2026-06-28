@@ -5,8 +5,25 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is not set');
 }
 
+/**
+ * The `postgres` package parses connection strings with the URL constructor,
+ * which treats `#` as a fragment delimiter — truncating any password that
+ * contains `#` (e.g. `#UBCEO_12as#` becomes an empty string).
+ *
+ * Fix: percent-encode bare `#` characters in the credentials section
+ * (everything before the last `@`) without double-encoding already-encoded
+ * values (which contain `%`, not `#`).
+ */
+function encodeConnectionString(url: string): string {
+  const lastAt = url.lastIndexOf('@');
+  if (lastAt === -1) return url;
+  const credentials = url.slice(0, lastAt);  // postgresql://user:pass
+  const hostPart    = url.slice(lastAt);      // @host:port/db
+  return credentials.replace(/#/g, '%23') + hostPart;
+}
+
 // prepare: false is required for Supabase connection pooler (PgBouncer transaction mode)
-export const sql = postgres(process.env.DATABASE_URL, {
+export const sql = postgres(encodeConnectionString(process.env.DATABASE_URL), {
   prepare: false,
   ssl: 'require',
   idle_timeout: 20,
@@ -17,6 +34,7 @@ let schemaInitialized = false;
 
 export async function initSchema(): Promise<void> {
   if (schemaInitialized) return;
+  try {
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id          UUID        PRIMARY KEY,
@@ -51,6 +69,10 @@ export async function initSchema(): Promise<void> {
     )
   `;
   schemaInitialized = true;
+  } catch (err) {
+    console.error('[db] initSchema failed — check DATABASE_URL and Supabase connectivity:', err);
+    throw err;
+  }
 }
 
 // ── User helpers ────────────────────────────────────────────────────────────

@@ -42,7 +42,12 @@ export async function POST(request: Request) {
       path: '/',
     });
     return res;
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[register] Unhandled error:', message, err);
+    return NextResponse.json(
+      { error: process.env.NODE_ENV === 'development' ? message : 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
