@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import Navbar from '@/components/Navbar';
+import { useRouter } from 'next/navigation';
+import BottomNav from '@/components/BottomNav';
 
 type CellState = 'hidden' | 'safe' | 'mine' | 'mine-all';
 
@@ -18,6 +19,7 @@ interface GameState {
 const MINE_COUNTS = [3, 5, 10, 15, 20];
 
 export default function MinesPage() {
+  const router = useRouter();
   const [balance, setBalance] = useState(0);
   const [bet, setBet] = useState(50);
   const [mineCount, setMineCount] = useState(5);
@@ -87,7 +89,6 @@ export default function MinesPage() {
       const newCells: CellState[] = [...game.cells];
 
       if (data.isMine) {
-        // Reveal all mines — data.grid is boolean[]
         const grid: boolean[] = Array.isArray(data.grid) ? data.grid : JSON.parse(data.grid);
         grid.forEach((isMine, i) => {
           if (isMine) newCells[i] = i === idx ? 'mine' : 'mine-all';
@@ -151,14 +152,13 @@ export default function MinesPage() {
   }
 
   function cellStyle(state: CellState, idx: number): string {
-    const base =
-      'w-full aspect-square flex items-center justify-center text-xl rounded transition-all duration-200 border select-none';
-    if (state === 'safe')     return `${base} bg-white/10 border-white/30 cursor-default`;
-    if (state === 'mine')     return `${base} bg-red-500/20 border-red-500/60 cursor-default`;
-    if (state === 'mine-all') return `${base} bg-red-900/20 border-red-900/30 cursor-default`;
-    if (game?.status !== 'active') return `${base} bg-white/[0.03] border-white/5 cursor-default`;
-    if (revealing === idx)    return `${base} bg-white/20 border-white/50 cursor-default scale-95`;
-    return `${base} bg-white/5 border-white/10 hover:bg-white/15 hover:border-white/30 cursor-pointer hover:scale-95`;
+    const base = 'w-full aspect-square flex items-center justify-center text-lg rounded-xl transition-all duration-150 select-none';
+    if (state === 'safe')     return `${base} bg-green-500/15 border border-green-500/25 cursor-default`;
+    if (state === 'mine')     return `${base} bg-red-500/20 border border-red-500/40 cursor-default`;
+    if (state === 'mine-all') return `${base} bg-red-900/15 border border-red-900/20 cursor-default`;
+    if (game?.status !== 'active') return `${base} bg-[#111111] border border-white/5 cursor-default`;
+    if (revealing === idx)    return `${base} bg-white/15 border border-white/30 scale-95 cursor-default`;
+    return `${base} bg-[#111111] border border-white/8 hover:bg-white/10 hover:border-white/20 cursor-pointer active:scale-95`;
   }
 
   function cellContent(state: CellState): string {
@@ -172,26 +172,37 @@ export default function MinesPage() {
   const isEnded  = game?.status === 'won' || game?.status === 'lost';
 
   return (
-    <div className="min-h-screen bg-black">
-      <Navbar />
-      <main className="max-w-2xl mx-auto px-4 pt-24 pb-16">
-        <div className="flex items-center gap-3 mb-8">
-          <span className="text-3xl">💎</span>
-          <div>
-            <h1 className="text-2xl font-black tracking-widest">MINES</h1>
-            <p className="text-white/30 text-xs tracking-wider">REVEAL CELLS · AVOID MINES · CASH OUT</p>
+    <div className="min-h-screen bg-black pb-24">
+      <div className="max-w-[430px] mx-auto px-5">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 pt-12 pb-6">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 rounded-full bg-[#111111] flex items-center justify-center"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">💎</span>
+              <h1 className="text-white font-bold text-lg">Mines</h1>
+            </div>
+            <p className="text-white/30 text-xs">Reveal cells · Avoid mines · Cash out</p>
           </div>
-          <div className="ml-auto text-right">
-            <p className="text-white/30 text-xs">Balance</p>
-            <p className="text-yellow-400 font-mono font-bold">${balance.toLocaleString()}</p>
+          <div className="text-right">
+            <p className="text-white/30 text-[10px]">Balance</p>
+            <p className="text-yellow-400 font-mono font-bold text-sm">${balance.toLocaleString()}</p>
           </div>
         </div>
 
-        {/* Setup controls — shown before game starts */}
+        {/* Setup controls */}
         {!game && (
-          <div className="border border-white/8 rounded-lg p-6 mb-6 space-y-5">
+          <div className="bg-[#111111] rounded-2xl p-5 mb-4 space-y-5">
             <div>
-              <label className="text-xs text-white/40 tracking-wider uppercase block mb-2">
+              <label className="text-xs text-white/40 tracking-wider uppercase block mb-3">
                 Bet Amount
               </label>
               <div className="flex gap-2 flex-wrap">
@@ -199,10 +210,10 @@ export default function MinesPage() {
                   <button
                     key={v}
                     onClick={() => setBet(v)}
-                    className={`px-4 py-2 rounded text-sm font-mono border transition-all ${
+                    className={`px-4 py-2 rounded-full text-sm font-mono transition-all ${
                       bet === v
-                        ? 'bg-white text-black border-white'
-                        : 'bg-white/5 text-white/60 border-white/10 hover:border-white/30 hover:text-white'
+                        ? 'bg-white text-black font-bold'
+                        : 'bg-[#1c1c1c] text-white/60 hover:text-white border border-white/8'
                     }`}
                   >
                     ${v}
@@ -214,13 +225,13 @@ export default function MinesPage() {
                   min={1}
                   max={balance}
                   onChange={e => setBet(Number(e.target.value))}
-                  className="px-3 py-2 rounded text-sm font-mono border border-white/10 bg-white/5 text-white w-24 focus:outline-none focus:border-white/40"
+                  className="px-3 py-2 rounded-full text-sm font-mono border border-white/8 bg-[#1c1c1c] text-white w-20 focus:outline-none focus:border-white/30"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs text-white/40 tracking-wider uppercase block mb-2">
+              <label className="text-xs text-white/40 tracking-wider uppercase block mb-3">
                 Mines ({mineCount})
               </label>
               <div className="flex gap-2">
@@ -228,10 +239,10 @@ export default function MinesPage() {
                   <button
                     key={v}
                     onClick={() => setMineCount(v)}
-                    className={`px-4 py-2 rounded text-sm font-mono border transition-all ${
+                    className={`px-4 py-2 rounded-full text-sm font-mono transition-all ${
                       mineCount === v
-                        ? 'bg-white text-black border-white'
-                        : 'bg-white/5 text-white/60 border-white/10 hover:border-white/30 hover:text-white'
+                        ? 'bg-white text-black font-bold'
+                        : 'bg-[#1c1c1c] text-white/60 hover:text-white border border-white/8'
                     }`}
                   >
                     {v}
@@ -241,82 +252,82 @@ export default function MinesPage() {
             </div>
 
             {msg && (
-              <p className="text-red-400 text-xs border border-red-400/20 bg-red-400/5 rounded px-3 py-2">
-                {msg}
-              </p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                <p className="text-red-400 text-xs">{msg}</p>
+              </div>
             )}
 
             <button
               onClick={startGame}
               disabled={loading || bet <= 0 || bet > balance}
-              className="w-full bg-white text-black font-bold py-3 rounded tracking-wider text-sm hover:bg-white/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full bg-white text-black font-bold py-4 rounded-full tracking-wider text-sm hover:bg-white/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {loading ? 'STARTING...' : `BET $${bet} AND PLAY`}
             </button>
           </div>
         )}
 
-        {/* Active game HUD */}
+        {/* Active HUD */}
         {isActive && game && (
-          <div className="flex items-center justify-between border border-white/8 rounded-lg px-5 py-3 mb-4 bg-white/[0.02]">
-            <div>
-              <p className="text-white/30 text-xs">Bet</p>
-              <p className="text-white font-mono font-bold">${game.bet}</p>
+          <div className="bg-[#111111] rounded-2xl px-5 py-4 mb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/30 text-[10px] mb-0.5">Bet</p>
+                <p className="text-white font-mono font-bold">${game.bet}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-white/30 text-[10px] mb-0.5">Multiplier</p>
+                <p className="text-white font-mono font-bold text-lg">
+                  {game.multiplier.toFixed(2)}x
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-white/30 text-[10px] mb-0.5">Cashout</p>
+                <p className="text-green-400 font-mono font-bold text-lg">${game.payout}</p>
+              </div>
+              <button
+                onClick={cashout}
+                disabled={game.revealedSafe === 0 || loading}
+                className="px-4 py-2.5 bg-green-500 text-black font-bold rounded-full text-xs hover:bg-green-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                CASH OUT
+              </button>
             </div>
-            <div className="text-center">
-              <p className="text-white/30 text-xs">Multiplier</p>
-              <p className="text-white font-mono font-bold text-xl">
-                {game.multiplier.toFixed(2)}x
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-white/30 text-xs">Cashout Value</p>
-              <p className="text-green-400 font-mono font-bold text-xl">${game.payout}</p>
-            </div>
-            <button
-              onClick={cashout}
-              disabled={game.revealedSafe === 0 || loading}
-              className="px-5 py-2.5 bg-green-500 text-black font-bold rounded text-sm hover:bg-green-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              CASH OUT
-            </button>
           </div>
         )}
 
         {/* In-game error */}
         {game && msg && !isEnded && (
-          <p className="text-red-400 text-xs border border-red-400/20 bg-red-400/5 rounded px-3 py-2 mb-4">
-            {msg}
-          </p>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-4">
+            <p className="text-red-400 text-xs">{msg}</p>
+          </div>
         )}
 
-        {/* Game result */}
+        {/* Result banner */}
         {isEnded && game && (
-          <div
-            className={`border rounded-lg px-5 py-4 mb-4 flex items-center justify-between ${
-              game.status === 'won'
-                ? 'border-green-500/30 bg-green-500/5'
-                : 'border-red-500/30 bg-red-500/5'
-            }`}
-          >
+          <div className={`rounded-2xl px-5 py-4 mb-4 flex items-center justify-between ${
+            game.status === 'won'
+              ? 'bg-green-500/10 border border-green-500/20'
+              : 'bg-red-500/10 border border-red-500/20'
+          }`}>
             <div>
-              <p className={`font-bold text-lg ${game.status === 'won' ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`font-bold text-base ${game.status === 'won' ? 'text-green-400' : 'text-red-400'}`}>
                 {game.status === 'won' ? `WON $${game.payout}!` : 'GAME OVER'}
               </p>
               <p className="text-white/40 text-xs mt-0.5">{msg}</p>
             </div>
             <button
               onClick={resetGame}
-              className="px-5 py-2.5 bg-white text-black font-bold rounded text-sm hover:bg-white/90 transition-all"
+              className="px-5 py-2.5 bg-white text-black font-bold rounded-full text-sm"
             >
-              PLAY AGAIN
+              Again
             </button>
           </div>
         )}
 
         {/* Grid */}
         {game ? (
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="grid grid-cols-5 gap-2">
             {game.cells.map((state, idx) => (
               <button
                 key={idx}
@@ -329,23 +340,26 @@ export default function MinesPage() {
             ))}
           </div>
         ) : (
-          <div className="border border-white/5 rounded-lg grid grid-cols-5 gap-1.5 p-4 opacity-30">
+          <div className="grid grid-cols-5 gap-2 opacity-20">
             {Array(25).fill(null).map((_, i) => (
-              <div key={i} className="aspect-square rounded bg-white/5 border border-white/5" />
+              <div key={i} className="aspect-square rounded-xl bg-[#111111] border border-white/5" />
             ))}
           </div>
         )}
 
-        <div className="mt-6 border border-white/5 rounded-lg p-4">
-          <p className="text-white/20 text-xs tracking-wider mb-2 uppercase">How to play</p>
+        {/* How to play */}
+        <div className="mt-5 bg-[#111111] rounded-2xl p-4">
+          <p className="text-white/25 text-xs tracking-wider mb-2 uppercase">How to play</p>
           <ul className="text-white/30 text-xs space-y-1">
-            <li>• Set your bet and number of mines, then click Play.</li>
+            <li>• Set your bet and number of mines, then tap Play.</li>
             <li>• Reveal cells — safe cells (💎) multiply your winnings.</li>
             <li>• Hit a mine (💥) and you lose your bet.</li>
             <li>• Cash out anytime to secure your winnings.</li>
           </ul>
         </div>
-      </main>
+
+      </div>
+      <BottomNav />
     </div>
   );
 }

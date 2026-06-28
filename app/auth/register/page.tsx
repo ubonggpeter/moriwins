@@ -37,22 +37,26 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-10">
+    <main className="min-h-screen bg-black flex items-center justify-center px-6">
+      <div className="w-full max-w-[430px]">
+        <div className="flex flex-col items-center mb-8">
           <Logo size="md" />
           <h1 className="text-2xl font-black tracking-widest mt-4">MORIWINS</h1>
           <p className="text-white/30 text-xs tracking-wider mt-1">CREATE FREE ACCOUNT</p>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded px-4 py-2.5 mb-4 text-center">
-          <span className="text-yellow-400 text-xs font-mono font-bold">+$1,000</span>
-          <span className="text-white/40 text-xs ml-2">FREE CREDITS ON SIGNUP</span>
+        {/* Free credits banner */}
+        <div className="bg-yellow-400/10 border border-yellow-400/20 rounded-2xl px-4 py-3 mb-6 flex items-center gap-3">
+          <span className="text-2xl">🎁</span>
+          <div>
+            <p className="text-yellow-400 text-sm font-bold font-mono">$1,000 FREE CREDITS</p>
+            <p className="text-white/40 text-xs mt-0.5">Instantly credited on signup</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs text-white/40 tracking-wider uppercase block mb-1.5">
+            <label className="text-xs text-white/40 tracking-wider uppercase block mb-2">
               Username
             </label>
             <input
@@ -62,13 +66,13 @@ export default function RegisterPage() {
               maxLength={20}
               value={form.username}
               onChange={e => setForm({ ...form, username: e.target.value })}
-              className="w-full bg-white/5 border border-white/10 rounded px-4 py-3 text-white text-sm focus:outline-none focus:border-white/40 transition-colors placeholder:text-white/20"
+              className="w-full bg-[#111111] border border-white/8 rounded-2xl px-4 py-3.5 text-white text-sm focus:outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
               placeholder="coolplayer"
             />
           </div>
 
           <div>
-            <label className="text-xs text-white/40 tracking-wider uppercase block mb-1.5">
+            <label className="text-xs text-white/40 tracking-wider uppercase block mb-2">
               Email
             </label>
             <input
@@ -76,13 +80,13 @@ export default function RegisterPage() {
               required
               value={form.email}
               onChange={e => setForm({ ...form, email: e.target.value })}
-              className="w-full bg-white/5 border border-white/10 rounded px-4 py-3 text-white text-sm focus:outline-none focus:border-white/40 transition-colors placeholder:text-white/20"
+              className="w-full bg-[#111111] border border-white/8 rounded-2xl px-4 py-3.5 text-white text-sm focus:outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label className="text-xs text-white/40 tracking-wider uppercase block mb-1.5">
+            <label className="text-xs text-white/40 tracking-wider uppercase block mb-2">
               Password
             </label>
             <input
@@ -91,21 +95,21 @@ export default function RegisterPage() {
               minLength={6}
               value={form.password}
               onChange={e => setForm({ ...form, password: e.target.value })}
-              className="w-full bg-white/5 border border-white/10 rounded px-4 py-3 text-white text-sm focus:outline-none focus:border-white/40 transition-colors placeholder:text-white/20"
+              className="w-full bg-[#111111] border border-white/8 rounded-2xl px-4 py-3.5 text-white text-sm focus:outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
               placeholder="at least 6 characters"
             />
           </div>
 
           {error && (
-            <p className="text-red-400 text-xs border border-red-400/20 bg-red-400/5 rounded px-3 py-2">
-              {error}
-            </p>
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3">
+              <p className="text-red-400 text-xs">{error}</p>
+            </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-white text-black font-bold py-3 rounded tracking-wider text-sm hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-white text-black font-bold py-4 rounded-2xl tracking-wider text-sm hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
             {loading ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT'}
           </button>

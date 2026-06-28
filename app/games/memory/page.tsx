@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import Navbar from '@/components/Navbar';
+import { useRouter } from 'next/navigation';
+import BottomNav from '@/components/BottomNav';
 
 const ICONS = ['🎰', '💎', '🃏', '♠️', '🔮', '⭐', '💀', '🌙'];
 
@@ -24,6 +25,7 @@ const MULT_TABLE = [
 ];
 
 export default function MemoryPage() {
+  const router = useRouter();
   const [balance, setBalance] = useState(0);
   const [bet, setBet] = useState(50);
   const [phase, setPhase] = useState<GamePhase>('idle');
@@ -193,26 +195,37 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black">
-      <Navbar />
-      <main className="max-w-2xl mx-auto px-4 pt-24 pb-16">
-        <div className="flex items-center gap-3 mb-8">
-          <span className="text-3xl">🃏</span>
-          <div>
-            <h1 className="text-2xl font-black tracking-widest">MEMORY</h1>
-            <p className="text-white/30 text-xs tracking-wider">MEMORIZE · MATCH · WIN</p>
+    <div className="min-h-screen bg-black pb-24">
+      <div className="max-w-[430px] mx-auto px-5">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 pt-12 pb-6">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 rounded-full bg-[#111111] flex items-center justify-center"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🃏</span>
+              <h1 className="text-white font-bold text-lg">Memory</h1>
+            </div>
+            <p className="text-white/30 text-xs">Memorize · Match · Win</p>
           </div>
-          <div className="ml-auto text-right">
-            <p className="text-white/30 text-xs">Balance</p>
-            <p className="text-yellow-400 font-mono font-bold">${balance.toLocaleString()}</p>
+          <div className="text-right">
+            <p className="text-white/30 text-[10px]">Balance</p>
+            <p className="text-yellow-400 font-mono font-bold text-sm">${balance.toLocaleString()}</p>
           </div>
         </div>
 
         {/* Bet setup */}
         {phase === 'idle' && (
-          <div className="border border-white/8 rounded-lg p-6 mb-6 space-y-5">
+          <div className="bg-[#111111] rounded-2xl p-5 mb-4 space-y-5">
             <div>
-              <label className="text-xs text-white/40 tracking-wider uppercase block mb-2">
+              <label className="text-xs text-white/40 tracking-wider uppercase block mb-3">
                 Bet Amount
               </label>
               <div className="flex gap-2 flex-wrap">
@@ -220,10 +233,10 @@ export default function MemoryPage() {
                   <button
                     key={v}
                     onClick={() => setBet(v)}
-                    className={`px-4 py-2 rounded text-sm font-mono border transition-all ${
+                    className={`px-4 py-2 rounded-full text-sm font-mono transition-all ${
                       bet === v
-                        ? 'bg-white text-black border-white'
-                        : 'bg-white/5 text-white/60 border-white/10 hover:border-white/30 hover:text-white'
+                        ? 'bg-white text-black font-bold'
+                        : 'bg-[#1c1c1c] text-white/60 hover:text-white border border-white/8'
                     }`}
                   >
                     ${v}
@@ -235,33 +248,34 @@ export default function MemoryPage() {
                   min={1}
                   max={balance}
                   onChange={e => setBet(Number(e.target.value))}
-                  className="px-3 py-2 rounded text-sm font-mono border border-white/10 bg-white/5 text-white w-24 focus:outline-none focus:border-white/40"
+                  className="px-3 py-2 rounded-full text-sm font-mono border border-white/8 bg-[#1c1c1c] text-white w-20 focus:outline-none focus:border-white/30"
                 />
               </div>
             </div>
 
-            <div className="border border-white/5 rounded p-4">
+            {/* Payout table */}
+            <div className="bg-[#1c1c1c] rounded-xl p-4">
               <p className="text-white/30 text-xs tracking-wider mb-3 uppercase">Payout Table</p>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-5 gap-1">
                 {MULT_TABLE.map(r => (
                   <div key={r.label} className="text-center">
-                    <p className="text-white/40 text-xs">{r.label}</p>
-                    <p className={`font-bold text-sm font-mono mt-0.5 ${r.color}`}>{r.mult}</p>
+                    <p className="text-white/30 text-[9px] leading-tight">{r.label}</p>
+                    <p className={`font-bold text-xs font-mono mt-1 ${r.color}`}>{r.mult}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             {msg && (
-              <p className="text-red-400 text-xs border border-red-400/20 bg-red-400/5 rounded px-3 py-2">
-                {msg}
-              </p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                <p className="text-red-400 text-xs">{msg}</p>
+              </div>
             )}
 
             <button
               onClick={startGame}
               disabled={loading || bet <= 0 || bet > balance}
-              className="w-full bg-white text-black font-bold py-3 rounded tracking-wider text-sm hover:bg-white/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full bg-white text-black font-bold py-4 rounded-full tracking-wider text-sm hover:bg-white/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {loading ? 'STARTING...' : `BET $${bet} AND PLAY`}
             </button>
@@ -270,7 +284,7 @@ export default function MemoryPage() {
 
         {/* Preview countdown */}
         {phase === 'preview' && (
-          <div className="text-center mb-4 border border-white/8 rounded-lg py-4">
+          <div className="bg-[#111111] rounded-2xl py-5 mb-4 text-center">
             <p className="text-white/50 text-sm tracking-widest uppercase">
               Memorize the cards! Hiding in{' '}
               <span className="text-white font-bold text-2xl font-mono">{countdown}</span>
@@ -280,35 +294,35 @@ export default function MemoryPage() {
 
         {/* Playing HUD */}
         {phase === 'playing' && (
-          <div className="flex items-center justify-between border border-white/8 rounded-lg px-5 py-3 mb-4 bg-white/2">
-            <div>
-              <p className="text-white/30 text-xs">Pairs Found</p>
-              <p className="text-white font-mono font-bold">{matched.filter(Boolean).length / 2} / 8</p>
-            </div>
-            <div className="text-center">
-              <p className="text-white/30 text-xs">Wrong Guesses</p>
-              <p className={`font-mono font-bold text-lg ${wrongGuesses >= 9 ? 'text-red-400' : wrongGuesses >= 6 ? 'text-yellow-400' : 'text-white'}`}>
-                {wrongGuesses} / 11
-              </p>
-            </div>
-            <div>
-              <p className="text-white/30 text-xs">Bet</p>
-              <p className="text-white font-mono font-bold">${bet}</p>
+          <div className="bg-[#111111] rounded-2xl px-5 py-4 mb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/30 text-[10px] mb-0.5">Pairs Found</p>
+                <p className="text-white font-mono font-bold">{matched.filter(Boolean).length / 2} / 8</p>
+              </div>
+              <div className="text-center">
+                <p className="text-white/30 text-[10px] mb-0.5">Wrong Guesses</p>
+                <p className={`font-mono font-bold text-lg ${wrongGuesses >= 9 ? 'text-red-400' : wrongGuesses >= 6 ? 'text-yellow-400' : 'text-white'}`}>
+                  {wrongGuesses} / 11
+                </p>
+              </div>
+              <div>
+                <p className="text-white/30 text-[10px] mb-0.5">Bet</p>
+                <p className="text-white font-mono font-bold">${bet}</p>
+              </div>
             </div>
           </div>
         )}
 
         {/* Result banner */}
         {(phase === 'won' || phase === 'lost') && result && (
-          <div
-            className={`border rounded-lg px-5 py-4 mb-4 flex items-center justify-between ${
-              result.won
-                ? 'border-green-500/30 bg-green-500/5'
-                : 'border-red-500/30 bg-red-500/5'
-            }`}
-          >
+          <div className={`rounded-2xl px-5 py-4 mb-4 flex items-center justify-between ${
+            result.won
+              ? 'bg-green-500/10 border border-green-500/20'
+              : 'bg-red-500/10 border border-red-500/20'
+          }`}>
             <div>
-              <p className={`font-bold text-lg ${result.won ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`font-bold text-base ${result.won ? 'text-green-400' : 'text-red-400'}`}>
                 {result.won ? `WON $${result.payout}! (${result.multiplier}x)` : 'YOU LOST'}
               </p>
               <p className="text-white/40 text-xs mt-0.5">
@@ -317,9 +331,9 @@ export default function MemoryPage() {
             </div>
             <button
               onClick={resetGame}
-              className="px-5 py-2.5 bg-white text-black font-bold rounded text-sm hover:bg-white/90 transition-all"
+              className="px-5 py-2.5 bg-white text-black font-bold rounded-full text-sm"
             >
-              PLAY AGAIN
+              Again
             </button>
           </div>
         )}
@@ -335,14 +349,14 @@ export default function MemoryPage() {
                   key={idx}
                   onClick={() => handleCardClick(idx)}
                   disabled={isFlipped || isMatch || phase !== 'playing'}
-                  className={`aspect-square rounded-lg text-2xl flex items-center justify-center border transition-all duration-200 select-none ${
+                  className={`aspect-square rounded-xl text-2xl flex items-center justify-center transition-all duration-200 select-none ${
                     isMatch
-                      ? 'bg-green-500/10 border-green-500/30 cursor-default'
+                      ? 'bg-green-500/10 border border-green-500/25 cursor-default'
                       : isFlipped
-                      ? 'bg-white/10 border-white/25 cursor-default'
+                      ? 'bg-[#1c1c1c] border border-white/15 cursor-default'
                       : phase === 'playing'
-                      ? 'bg-white/5 border-white/10 hover:bg-white/12 hover:border-white/25 cursor-pointer active:scale-95'
-                      : 'bg-white/3 border-white/5 cursor-default'
+                      ? 'bg-[#111111] border border-white/8 hover:bg-white/8 hover:border-white/20 cursor-pointer active:scale-95'
+                      : 'bg-[#111111] border border-white/5 cursor-default'
                   }`}
                 >
                   {(isFlipped || isMatch) ? icon : ''}
@@ -355,21 +369,24 @@ export default function MemoryPage() {
         {cards.length === 0 && (
           <div className="grid grid-cols-4 gap-2 opacity-20">
             {Array(16).fill(null).map((_, i) => (
-              <div key={i} className="aspect-square rounded-lg bg-white/5 border border-white/5" />
+              <div key={i} className="aspect-square rounded-xl bg-[#111111] border border-white/5" />
             ))}
           </div>
         )}
 
-        <div className="mt-6 border border-white/5 rounded-lg p-4">
-          <p className="text-white/20 text-xs tracking-wider mb-2 uppercase">How to play</p>
+        {/* How to play */}
+        <div className="mt-5 bg-[#111111] rounded-2xl p-4">
+          <p className="text-white/25 text-xs tracking-wider mb-2 uppercase">How to play</p>
           <ul className="text-white/30 text-xs space-y-1">
             <li>• Cards are briefly shown for 3 seconds — memorize their positions!</li>
-            <li>• Click two cards to reveal them. Matching pairs stay revealed.</li>
+            <li>• Tap two cards to reveal them. Matching pairs stay revealed.</li>
             <li>• Win with fewer wrong guesses for a higher multiplier.</li>
             <li>• 12 wrong guesses and you lose your bet.</li>
           </ul>
         </div>
-      </main>
+
+      </div>
+      <BottomNav />
     </div>
   );
 }

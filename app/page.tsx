@@ -5,17 +5,15 @@ import Logo from '@/components/Logo';
 
 const GAMES = [
   {
-    title: 'MINES',
-    desc: 'Navigate a minefield and cash out before you explode.',
+    title: 'Mines',
+    desc: 'Reveal cells, avoid mines, cash out anytime.',
     icon: '💎',
-    href: '/games/mines',
     tag: 'HIGH RISK',
   },
   {
-    title: 'MEMORY',
-    desc: 'Match all pairs before your luck runs out.',
+    title: 'Memory',
+    desc: 'Memorize cards and match all pairs to win.',
     icon: '🃏',
-    href: '/games/memory',
     tag: 'SKILL',
   },
 ];
@@ -29,23 +27,14 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-black flex flex-col">
+    <main className="min-h-screen bg-black flex flex-col max-w-[430px] mx-auto">
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-10 text-center relative overflow-hidden">
-        {/* background grid glow */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(255,255,255,0.04) 0%, transparent 70%)',
-          }}
-        />
-
+      <section className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-10 text-center">
         <div
           className="transition-all duration-700"
           style={{
             opacity: visible ? 1 : 0,
-            transform: visible ? 'translateY(0)' : 'translateY(30px)',
+            transform: visible ? 'translateY(0)' : 'translateY(24px)',
           }}
         >
           <div className="flex justify-center mb-6">
@@ -53,30 +42,30 @@ export default function LandingPage() {
           </div>
 
           <h1
-            className="text-6xl sm:text-8xl font-black tracking-tighter mb-4 shimmer-text"
+            className="text-5xl font-black tracking-tighter mb-3 shimmer-text"
             style={{ letterSpacing: '-0.04em' }}
           >
             MORIWINS
           </h1>
 
-          <p className="text-white/40 text-lg sm:text-xl tracking-widest mb-2 uppercase">
+          <p className="text-white/40 text-base tracking-widest mb-2 uppercase">
             Play. Risk. Win.
           </p>
 
-          <p className="text-white/25 text-sm max-w-md mx-auto mb-10">
-            A premium dark-theme gaming platform. Start with $1,000 free credits.
+          <p className="text-white/25 text-sm max-w-xs mx-auto mb-8 leading-relaxed">
+            A dark gaming platform. Start with <span className="text-yellow-400 font-mono font-bold">$1,000</span> free credits.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col gap-3">
             <Link
               href="/auth/register"
-              className="px-8 py-3 bg-white text-black font-bold tracking-wider text-sm hover:bg-white/90 transition-all rounded glow-pulse"
+              className="w-full py-4 bg-white text-black font-bold tracking-wider text-sm rounded-2xl glow-pulse"
             >
               GET STARTED FREE
             </Link>
             <Link
               href="/auth/login"
-              className="px-8 py-3 border border-white/20 text-white font-bold tracking-wider text-sm hover:border-white/50 hover:bg-white/5 transition-all rounded"
+              className="w-full py-4 border border-white/15 text-white font-bold tracking-wider text-sm rounded-2xl hover:border-white/30 transition-all"
             >
               SIGN IN
             </Link>
@@ -85,37 +74,42 @@ export default function LandingPage() {
       </section>
 
       {/* Games preview */}
-      <section className="max-w-4xl mx-auto w-full px-6 pb-20">
-        <p className="text-white/20 text-xs tracking-widest uppercase mb-6 text-center">
-          Available Games
+      <section className="px-6 pb-16">
+        <p className="text-white/20 text-xs tracking-widest uppercase mb-4 text-center">
+          Games Available
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-3">
           {GAMES.map((g, i) => (
             <div
               key={g.title}
-              className="border border-white/8 rounded-lg p-6 bg-white/2 hover:bg-white/5 hover:border-white/20 transition-all group"
+              className="bg-[#111111] rounded-2xl p-5"
               style={{
                 opacity: visible ? 1 : 0,
-                transform: visible ? 'translateY(0)' : 'translateY(20px)',
-                transitionDelay: `${i * 100 + 400}ms`,
+                transform: visible ? 'translateY(0)' : 'translateY(16px)',
+                transitionDelay: `${i * 80 + 300}ms`,
                 transitionDuration: '500ms',
+                transition: 'opacity 500ms, transform 500ms',
               }}
             >
-              <div className="flex items-start justify-between mb-4">
-                <span className="text-3xl">{g.icon}</span>
-                <span className="text-[10px] tracking-widest text-white/30 border border-white/10 px-2 py-0.5 rounded">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{g.icon}</span>
+                  <div>
+                    <p className="text-white font-bold text-sm">{g.title}</p>
+                    <p className="text-white/40 text-xs mt-0.5">{g.desc}</p>
+                  </div>
+                </div>
+                <span className="text-[10px] tracking-widest text-white/30 border border-white/10 px-2 py-0.5 rounded-full">
                   {g.tag}
                 </span>
               </div>
-              <h3 className="text-white font-bold tracking-widest text-sm mb-2">{g.title}</h3>
-              <p className="text-white/40 text-xs leading-relaxed">{g.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <footer className="border-t border-white/5 py-6 text-center text-white/20 text-xs tracking-wider">
-        MORIWINS &copy; {new Date().getFullYear()} &mdash; FOR ENTERTAINMENT PURPOSES ONLY
+      <footer className="border-t border-white/5 py-5 text-center text-white/15 text-xs tracking-wider">
+        MORIWINS &copy; {new Date().getFullYear()} &mdash; ENTERTAINMENT ONLY
       </footer>
     </main>
   );
