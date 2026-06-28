@@ -113,7 +113,7 @@ export default function MemoryPage() {
     }, 1000);
   }
 
-  async function completeGame(won: boolean, wrongs: number, gid: string, b: number) {
+  async function completeGame(won: boolean, wrongs: number, gid: string) {
     setPhase(won ? 'won' : 'lost');
     const res = await fetch('/api/games/memory', {
       method: 'PATCH',
@@ -158,7 +158,7 @@ export default function MemoryPage() {
 
       const totalMatched = newMatched.filter(Boolean).length;
       if (totalMatched === 16) {
-        await completeGame(true, s.wrongGuesses, s.gameId, s.bet);
+        await completeGame(true, s.wrongGuesses, s.gameId);
       }
     } else {
       const newWrong = s.wrongGuesses + 1;
@@ -175,7 +175,7 @@ export default function MemoryPage() {
       lockRef.current = false;
 
       if (newWrong >= 12) {
-        await completeGame(false, newWrong, s.gameId, s.bet);
+        await completeGame(false, newWrong, s.gameId);
       }
     }
   }
