@@ -1,10 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Logo from '@/components/Logo';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [form, setForm] = useState({ username: '', email: '', password: '' });
@@ -141,5 +141,14 @@ export default function RegisterPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+// useSearchParams() requires a Suspense boundary in Next.js 14 App Router
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }
