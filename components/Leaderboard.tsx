@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 
-interface Entry { username: string; earnings: number; }
+interface Entry { username: string; earnings: number; avatarUrl?: string | null; }
 
 export default function Leaderboard() {
   const [tab, setTab] = useState<'games' | 'referrals'>('games');
@@ -60,8 +60,10 @@ export default function Leaderboard() {
           list.map((entry, i) => (
             <div key={entry.username} className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/[0.03]">
               <span className="text-base w-6 text-center">{rankBadge(i)}</span>
-              <div className="w-8 h-8 rounded-full bg-[#1c1c1c] flex items-center justify-center text-white font-bold text-sm shrink-0">
-                {entry.username[0]?.toUpperCase()}
+              <div className="w-8 h-8 rounded-full bg-[#1c1c1c] flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden">
+                {entry.avatarUrl
+                  ? <img src={entry.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  : entry.username[0]?.toUpperCase()}
               </div>
               <span className="flex-1 text-white text-sm font-medium truncate">{entry.username}</span>
               <span className="text-green-400 font-mono font-bold text-sm">${entry.earnings.toLocaleString()}</span>

@@ -41,6 +41,7 @@ export async function POST(request: Request) {
       referredBy: null,
       referralEarnings: 0,
       totalGameWinnings: 0,
+      avatarUrl: null,
     });
 
     // Handle referral bonus — ref param is the referrer's username

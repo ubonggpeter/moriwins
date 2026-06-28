@@ -10,6 +10,7 @@ export interface User {
   referredBy: string | null;
   referralEarnings: number;
   totalGameWinnings: number;
+  avatarUrl: string | null;
 }
 
 export interface MinesGame {

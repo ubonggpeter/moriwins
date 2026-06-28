@@ -75,6 +75,7 @@ export async function initSchema(): Promise<void> {
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by UUID`; } catch {}
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earnings INTEGER NOT NULL DEFAULT 0`; } catch {}
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_game_winnings INTEGER NOT NULL DEFAULT 0`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`; } catch {}
 
     await sql`
       CREATE TABLE IF NOT EXISTS referrals (
@@ -144,6 +145,7 @@ function rowToUser(r: Record<string, unknown>): User {
     referredBy: (r.referred_by as string) ?? null,
     referralEarnings: Number(r.referral_earnings ?? 0),
     totalGameWinnings: Number(r.total_game_winnings ?? 0),
+    avatarUrl: (r.avatar_url as string | null) ?? null,
   };
 }
 

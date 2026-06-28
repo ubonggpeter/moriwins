@@ -9,6 +9,7 @@ interface User {
   email: string;
   balance: number;
   isAdmin?: boolean;
+  avatarUrl?: string | null;
 }
 
 interface ReferralStats {
@@ -82,8 +83,10 @@ export default function DashboardPage() {
                 ADMIN
               </Link>
             )}
-            <div className="w-10 h-10 rounded-full bg-[#1c1c1c] border border-white/10 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">{initial}</span>
+            <div className="w-10 h-10 rounded-full bg-[#1c1c1c] border border-white/10 overflow-hidden flex items-center justify-center">
+              {user?.avatarUrl
+                ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                : <span className="text-white font-bold text-sm">{initial}</span>}
             </div>
           </div>
         </div>
