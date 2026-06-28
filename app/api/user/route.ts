@@ -21,6 +21,6 @@ export async function GET() {
     referralCode: user.referralCode,
     referralEarnings: user.referralEarnings,
     totalGameWinnings: user.totalGameWinnings,
-    isAdmin: user.isAdmin,
+    isAdmin: user.isAdmin === true,   // always a strict boolean in JSON
   });
 }

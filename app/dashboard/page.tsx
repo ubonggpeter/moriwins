@@ -74,7 +74,7 @@ export default function DashboardPage() {
             <p className="text-white font-bold text-lg mt-0.5">{user?.username ?? '—'}</p>
           </div>
           <div className="flex items-center gap-2">
-            {user?.isAdmin && (
+            {user?.isAdmin === true && (
               <Link
                 href="/admin"
                 className="bg-yellow-400 text-black text-xs font-black px-3 py-1.5 rounded-full tracking-wide hover:bg-yellow-300 transition-colors"

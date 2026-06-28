@@ -126,15 +126,20 @@ export async function initSchema(): Promise<void> {
 
 // ── User helpers ────────────────────────────────────────────────────────────
 
+// porsager/postgres in prepare:false mode may return booleans as 't'/'f' strings
+function parseBool(v: unknown): boolean {
+  return v === true || v === 't' || v === 'true' || v === '1' || v === 1;
+}
+
 function rowToUser(r: Record<string, unknown>): User {
   return {
     id: r.id as string,
     username: r.username as string,
     email: r.email as string,
     passwordHash: r.password_hash as string,
-    balance: r.balance as number,
+    balance: Number(r.balance),
     createdAt: (r.created_at as Date).toISOString(),
-    isAdmin: (r.is_admin as boolean) ?? false,
+    isAdmin: parseBool(r.is_admin),
     referralCode: (r.referral_code as string) ?? '',
     referredBy: (r.referred_by as string) ?? null,
     referralEarnings: Number(r.referral_earnings ?? 0),
