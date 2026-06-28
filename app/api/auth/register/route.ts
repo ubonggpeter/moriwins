@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { getUserByEmail, getUserByUsername, createUser } from '@/lib/db';
+import { getUserByEmail, getUserByUsername, getUserByReferralCode, createUser, sql } from '@/lib/db';
 import { signToken } from '@/lib/auth';
+
+function generateReferralCode(): string {
+  return Math.random().toString(36).substring(2, 10).toUpperCase();
+}
 
 export async function POST(request: Request) {
   try {
-    const { username, email, password } = await request.json();
+    const { username, email, password, ref: incomingRef } = await request.json();
 
     if (!username || !email || !password) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
@@ -21,15 +25,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Username already taken' }, { status: 400 });
     }
 
+    const referralCode = generateReferralCode();
+    const userId = uuidv4();
     const passwordHash = await bcrypt.hash(password, 10);
+
     const user = await createUser({
-      id: uuidv4(),
+      id: userId,
       username,
       email,
       passwordHash,
       balance: 1000,
       createdAt: new Date().toISOString(),
+      isAdmin: false,
+      referralCode,
+      referredBy: null,
+      referralEarnings: 0,
+      totalGameWinnings: 0,
     });
+
+    // Handle referral bonus
+    if (incomingRef) {
+      const referrer = await getUserByReferralCode(String(incomingRef));
+      if (referrer && referrer.id !== userId) {
+        await sql`UPDATE users SET balance = balance + 50, referral_earnings = referral_earnings + 50 WHERE id = ${referrer.id}`;
+        await sql`INSERT INTO referrals (id, referrer_id, referred_id, bonus_paid) VALUES (${uuidv4()}, ${referrer.id}, ${userId}, 50)`;
+      }
+    }
 
     const token = await signToken({ userId: user.id, username: user.username });
     const res = NextResponse.json({

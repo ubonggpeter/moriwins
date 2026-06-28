@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Logo from '@/components/Logo';
+import Leaderboard from '@/components/Leaderboard';
 
 const GAMES = [
   {
@@ -74,7 +75,7 @@ export default function LandingPage() {
       </section>
 
       {/* Games preview */}
-      <section className="px-6 pb-16">
+      <section className="px-6 pb-8">
         <p className="text-white/20 text-xs tracking-widest uppercase mb-4 text-center">
           Games Available
         </p>
@@ -106,6 +107,12 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Leaderboard */}
+      <section className="px-6 pb-12">
+        <p className="text-white/20 text-xs tracking-widest uppercase mb-4 text-center">Top Earners</p>
+        <Leaderboard />
       </section>
 
       <footer className="border-t border-white/5 py-5 text-center text-white/15 text-xs tracking-wider">

@@ -73,7 +73,7 @@ export async function PATCH(request: Request) {
       WHERE id = ${gameId}
     `;
     const [updated] = await tx`
-      UPDATE users SET balance = balance + ${payout}
+      UPDATE users SET balance = balance + ${payout}, total_game_winnings = total_game_winnings + ${payout}
       WHERE id = ${user.id}
       RETURNING balance
     `;

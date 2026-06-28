@@ -35,40 +35,89 @@ let schemaInitialized = false;
 export async function initSchema(): Promise<void> {
   if (schemaInitialized) return;
   try {
-  await sql`
-    CREATE TABLE IF NOT EXISTS users (
-      id          UUID        PRIMARY KEY,
-      username    TEXT        UNIQUE NOT NULL,
-      email       TEXT        UNIQUE NOT NULL,
-      password_hash TEXT      NOT NULL,
-      balance     INTEGER     NOT NULL DEFAULT 1000,
-      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS mines_games (
-      id            UUID        PRIMARY KEY,
-      user_id       UUID        NOT NULL REFERENCES users(id),
-      grid          JSONB       NOT NULL,
-      revealed      JSONB       NOT NULL,
-      bet           INTEGER     NOT NULL,
-      mine_count    INTEGER     NOT NULL,
-      status        TEXT        NOT NULL DEFAULT 'active',
-      revealed_safe INTEGER     NOT NULL DEFAULT 0,
-      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS memory_games (
-      id            UUID        PRIMARY KEY,
-      user_id       UUID        NOT NULL REFERENCES users(id),
-      bet           INTEGER     NOT NULL,
-      status        TEXT        NOT NULL DEFAULT 'active',
-      wrong_guesses INTEGER     NOT NULL DEFAULT 0,
-      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  schemaInitialized = true;
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id            UUID        PRIMARY KEY,
+        username      TEXT        UNIQUE NOT NULL,
+        email         TEXT        UNIQUE NOT NULL,
+        password_hash TEXT        NOT NULL,
+        balance       INTEGER     NOT NULL DEFAULT 1000,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS mines_games (
+        id            UUID        PRIMARY KEY,
+        user_id       UUID        NOT NULL REFERENCES users(id),
+        grid          JSONB       NOT NULL,
+        revealed      JSONB       NOT NULL,
+        bet           INTEGER     NOT NULL,
+        mine_count    INTEGER     NOT NULL,
+        status        TEXT        NOT NULL DEFAULT 'active',
+        revealed_safe INTEGER     NOT NULL DEFAULT 0,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS memory_games (
+        id            UUID        PRIMARY KEY,
+        user_id       UUID        NOT NULL REFERENCES users(id),
+        bet           INTEGER     NOT NULL,
+        status        TEXT        NOT NULL DEFAULT 'active',
+        wrong_guesses INTEGER     NOT NULL DEFAULT 0,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    // New columns on users — each wrapped individually so failures are non-fatal
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by UUID`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earnings INTEGER NOT NULL DEFAULT 0`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_game_winnings INTEGER NOT NULL DEFAULT 0`; } catch {}
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id          UUID        PRIMARY KEY,
+        referrer_id UUID        NOT NULL REFERENCES users(id),
+        referred_id UUID        NOT NULL UNIQUE REFERENCES users(id),
+        bonus_paid  INTEGER     NOT NULL DEFAULT 50,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS bank_accounts (
+        id             UUID        PRIMARY KEY,
+        user_id        UUID        NOT NULL REFERENCES users(id),
+        bank_name      TEXT        NOT NULL,
+        account_number TEXT        NOT NULL,
+        account_name   TEXT        NOT NULL,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id              UUID        PRIMARY KEY,
+        user_id         UUID        NOT NULL REFERENCES users(id),
+        amount          INTEGER     NOT NULL,
+        bank_account_id UUID        NOT NULL REFERENCES bank_accounts(id),
+        status          TEXT        NOT NULL DEFAULT 'pending',
+        admin_note      TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`INSERT INTO app_settings (key, value) VALUES ('withdrawal_threshold', '10000') ON CONFLICT (key) DO NOTHING`;
+    await sql`INSERT INTO app_settings (key, value) VALUES ('deposit_info', '[]') ON CONFLICT (key) DO NOTHING`;
+
+    schemaInitialized = true;
   } catch (err) {
     console.error('[db] initSchema failed — check DATABASE_URL and Supabase connectivity:', err);
     throw err;
@@ -85,6 +134,11 @@ function rowToUser(r: Record<string, unknown>): User {
     passwordHash: r.password_hash as string,
     balance: r.balance as number,
     createdAt: (r.created_at as Date).toISOString(),
+    isAdmin: (r.is_admin as boolean) ?? false,
+    referralCode: (r.referral_code as string) ?? '',
+    referredBy: (r.referred_by as string) ?? null,
+    referralEarnings: Number(r.referral_earnings ?? 0),
+    totalGameWinnings: Number(r.total_game_winnings ?? 0),
   };
 }
 
@@ -106,11 +160,17 @@ export async function getUserByUsername(username: string): Promise<User | null> 
   return rows.length ? rowToUser(rows[0]) : null;
 }
 
+export async function getUserByReferralCode(code: string): Promise<User | null> {
+  await initSchema();
+  const rows = await sql`SELECT * FROM users WHERE referral_code = ${code}`;
+  return rows.length ? rowToUser(rows[0]) : null;
+}
+
 export async function createUser(user: User): Promise<User> {
   await initSchema();
   await sql`
-    INSERT INTO users (id, username, email, password_hash, balance, created_at)
-    VALUES (${user.id}, ${user.username}, ${user.email}, ${user.passwordHash}, ${user.balance}, ${user.createdAt})
+    INSERT INTO users (id, username, email, password_hash, balance, created_at, referral_code)
+    VALUES (${user.id}, ${user.username}, ${user.email}, ${user.passwordHash}, ${user.balance}, ${user.createdAt}, ${user.referralCode})
   `;
   return user;
 }
@@ -124,4 +184,20 @@ export async function updateUser(id: string, updates: Partial<User>): Promise<Us
     RETURNING *
   `;
   return rows.length ? rowToUser(rows[0]) : null;
+}
+
+// ── Settings helpers ─────────────────────────────────────────────────────────
+
+export async function getSetting(key: string, defaultValue = ''): Promise<string> {
+  await initSchema();
+  const rows = await sql`SELECT value FROM app_settings WHERE key = ${key}`;
+  return rows.length ? (rows[0].value as string) : defaultValue;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await initSchema();
+  await sql`
+    INSERT INTO app_settings (key, value) VALUES (${key}, ${value})
+    ON CONFLICT (key) DO UPDATE SET value = ${value}, updated_at = NOW()
+  `;
 }

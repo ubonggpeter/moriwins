@@ -18,5 +18,9 @@ export async function GET() {
     username: user.username,
     email: user.email,
     balance: user.balance,
+    referralCode: user.referralCode,
+    referralEarnings: user.referralEarnings,
+    totalGameWinnings: user.totalGameWinnings,
+    isAdmin: user.isAdmin,
   });
 }

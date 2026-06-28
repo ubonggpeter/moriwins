@@ -2,11 +2,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
+import Leaderboard from '@/components/Leaderboard';
 
 interface User {
   username: string;
   email: string;
   balance: number;
+}
+
+interface ReferralStats {
+  referralCode: string;
+  referralLink: string;
+  totalReferrals: number;
+  referralEarnings: number;
 }
 
 const GAMES = [
@@ -20,7 +28,7 @@ const GAMES = [
   },
   {
     title: 'Memory',
-    desc: 'Match all pairs before time runs out',
+    desc: 'Match all pairs to win',
     icon: '🃏',
     href: '/games/memory',
     tag: 'SKILL',
@@ -30,13 +38,27 @@ const GAMES = [
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [referral, setReferral] = useState<ReferralStats | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch('/api/user')
       .then(r => r.json())
       .then(d => { if (d.username) setUser(d); })
       .catch(() => {});
+    fetch('/api/referral')
+      .then(r => r.json())
+      .then(d => { if (d.referralCode) setReferral(d); })
+      .catch(() => {});
   }, []);
+
+  function copyReferralLink() {
+    if (!referral) return;
+    navigator.clipboard.writeText(referral.referralLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   const initial = user?.username?.[0]?.toUpperCase() ?? '?';
 
@@ -68,14 +90,43 @@ export default function DashboardPage() {
             >
               Add Money
             </Link>
-            <button
-              disabled
-              className="flex-1 bg-[#1c1c1c] text-white/60 font-bold text-sm py-3 rounded-full cursor-not-allowed"
+            <Link
+              href="/withdraw"
+              className="flex-1 bg-[#1c1c1c] text-white font-bold text-sm py-3 rounded-full text-center border border-white/[0.08]"
             >
               Withdraw
-            </button>
+            </Link>
           </div>
         </div>
+
+        {/* Referral card */}
+        {referral && (
+          <div className="bg-[#111111] rounded-2xl p-5 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-white font-bold text-sm">Referral Program</p>
+              <span className="text-green-400 text-xs font-bold">+$50 per referral</span>
+            </div>
+            <div className="bg-[#1a1a1a] rounded-xl px-4 py-3 flex items-center justify-between mb-3">
+              <span className="text-white/40 text-xs font-mono">{referral.referralCode}</span>
+              <button
+                onClick={copyReferralLink}
+                className="text-white text-xs font-bold bg-white/10 px-3 py-1 rounded-full hover:bg-white/20"
+              >
+                {copied ? '✓ Copied!' : 'Copy Link'}
+              </button>
+            </div>
+            <div className="flex gap-6">
+              <div>
+                <p className="text-white font-bold">{referral.totalReferrals}</p>
+                <p className="text-white/30 text-xs">Referrals</p>
+              </div>
+              <div>
+                <p className="text-green-400 font-bold font-mono">${referral.referralEarnings}</p>
+                <p className="text-white/30 text-xs">Earned</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Daily goal */}
         <div className="bg-[#111111] rounded-2xl p-4 mb-6">
@@ -104,7 +155,7 @@ export default function DashboardPage() {
 
         {/* Game cards */}
         <p className="text-white/30 text-xs tracking-widest uppercase mb-3">Play Now</p>
-        <div className="space-y-3">
+        <div className="space-y-3 mb-6">
           {GAMES.map(g => (
             <Link
               key={g.title}
@@ -125,6 +176,10 @@ export default function DashboardPage() {
             </Link>
           ))}
         </div>
+
+        {/* Leaderboard */}
+        <p className="text-white/30 text-xs tracking-widest uppercase mb-3">Leaderboard</p>
+        <Leaderboard />
 
       </div>
       <BottomNav />
