@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 
 type CellState = 'hidden' | 'safe' | 'mine' | 'mine-all';
@@ -11,9 +11,8 @@ interface GameState {
   cells: CellState[];
   multiplier: number;
   payout: number;
-  status: 'idle' | 'active' | 'won' | 'lost';
+  status: 'active' | 'won' | 'lost';
   revealedSafe: number;
-  balance: number;
 }
 
 const MINE_COUNTS = [3, 5, 10, 15, 20];
@@ -28,42 +27,43 @@ export default function MinesPage() {
   const [revealing, setRevealing] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/user').then(r => r.json()).then(d => {
-      if (d.balance !== undefined) setBalance(d.balance);
-    });
+    fetch('/api/user')
+      .then(r => r.json())
+      .then(d => { if (d.balance !== undefined) setBalance(d.balance); })
+      .catch(() => {});
   }, []);
 
   async function startGame() {
     if (loading) return;
     setMsg('');
     setLoading(true);
-
-    const res = await fetch('/api/games/mines', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bet, mineCount }),
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      setMsg(data.error);
+    try {
+      const res = await fetch('/api/games/mines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bet, mineCount }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg(data.error ?? 'Failed to start game');
+        return;
+      }
+      setBalance(data.balance);
+      setGame({
+        gameId: data.gameId,
+        bet,
+        mineCount,
+        cells: Array(25).fill('hidden'),
+        multiplier: 1,
+        payout: 0,
+        status: 'active',
+        revealedSafe: 0,
+      });
+    } catch {
+      setMsg('Network error — please try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setBalance(data.balance);
-    setGame({
-      gameId: data.gameId,
-      bet,
-      mineCount,
-      cells: Array(25).fill('hidden'),
-      multiplier: 1,
-      payout: 0,
-      status: 'active',
-      revealedSafe: 0,
-      balance: data.balance,
-    });
-    setLoading(false);
   }
 
   async function revealCell(idx: number) {
@@ -71,54 +71,78 @@ export default function MinesPage() {
 
     setRevealing(idx);
     setLoading(true);
-
-    const res = await fetch('/api/games/mines', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameId: game.gameId, action: 'reveal', cellIndex: idx }),
-    });
-    const data = await res.json();
-
-    const newCells = [...game.cells];
-
-    if (data.isMine) {
-      // Reveal all mines
-      data.grid.forEach((isMine: boolean, i: number) => {
-        if (isMine) newCells[i] = i === idx ? 'mine' : 'mine-all';
+    try {
+      const res = await fetch('/api/games/mines', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: game.gameId, action: 'reveal', cellIndex: idx }),
       });
-      setBalance(data.balance);
-      setGame({ ...game, cells: newCells, status: 'lost', multiplier: 0, payout: 0 });
-      setMsg('BOOM! You hit a mine.');
-    } else {
-      newCells[idx] = 'safe';
-      setGame({
-        ...game,
-        cells: newCells,
-        multiplier: data.multiplier,
-        payout: data.payout,
-        revealedSafe: data.revealedSafe,
-      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMsg(data.error ?? 'Something went wrong');
+        return;
+      }
+
+      const newCells: CellState[] = [...game.cells];
+
+      if (data.isMine) {
+        // Reveal all mines — data.grid is boolean[]
+        const grid: boolean[] = Array.isArray(data.grid) ? data.grid : JSON.parse(data.grid);
+        grid.forEach((isMine, i) => {
+          if (isMine) newCells[i] = i === idx ? 'mine' : 'mine-all';
+        });
+        setBalance(data.balance);
+        setGame(g => g ? { ...g, cells: newCells, status: 'lost', multiplier: 0, payout: 0 } : g);
+        setMsg('BOOM! You hit a mine.');
+      } else {
+        newCells[idx] = 'safe';
+        setGame(g =>
+          g
+            ? {
+                ...g,
+                cells: newCells,
+                multiplier: data.multiplier ?? 1,
+                payout: data.payout ?? 0,
+                revealedSafe: data.revealedSafe ?? g.revealedSafe + 1,
+              }
+            : g
+        );
+      }
+    } catch {
+      setMsg('Network error — please try again.');
+    } finally {
+      setRevealing(null);
+      setLoading(false);
     }
-
-    setRevealing(null);
-    setLoading(false);
   }
 
   async function cashout() {
     if (!game || game.status !== 'active' || game.revealedSafe === 0 || loading) return;
     setLoading(true);
+    try {
+      const res = await fetch('/api/games/mines', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: game.gameId, action: 'cashout' }),
+      });
+      const data = await res.json();
 
-    const res = await fetch('/api/games/mines', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameId: game.gameId, action: 'cashout' }),
-    });
-    const data = await res.json();
+      if (!res.ok) {
+        setMsg(data.error ?? 'Cashout failed');
+        return;
+      }
 
-    setBalance(data.balance);
-    setGame({ ...game, status: 'won', payout: data.payout, multiplier: data.multiplier });
-    setMsg(`Cashed out ${data.multiplier}x — Won $${data.payout}!`);
-    setLoading(false);
+      setBalance(data.balance);
+      setGame(g =>
+        g ? { ...g, status: 'won', payout: data.payout, multiplier: data.multiplier } : g
+      );
+      setMsg(`Cashed out ${data.multiplier}x — Won $${data.payout}!`);
+    } catch {
+      setMsg('Network error — please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function resetGame() {
@@ -126,37 +150,26 @@ export default function MinesPage() {
     setMsg('');
   }
 
-  const cellStyle = useCallback((state: CellState, idx: number) => {
+  function cellStyle(state: CellState, idx: number): string {
     const base =
       'w-full aspect-square flex items-center justify-center text-xl rounded transition-all duration-200 border select-none';
-
-    if (state === 'safe') {
-      return `${base} bg-white/10 border-white/30 cursor-default`;
-    }
-    if (state === 'mine') {
-      return `${base} bg-red-500/20 border-red-500/60 cursor-default`;
-    }
-    if (state === 'mine-all') {
-      return `${base} bg-red-900/20 border-red-900/30 cursor-default`;
-    }
-    if (game?.status !== 'active') {
-      return `${base} bg-white/3 border-white/5 cursor-default`;
-    }
-    if (revealing === idx) {
-      return `${base} bg-white/20 border-white/50 cursor-default scale-95`;
-    }
+    if (state === 'safe')     return `${base} bg-white/10 border-white/30 cursor-default`;
+    if (state === 'mine')     return `${base} bg-red-500/20 border-red-500/60 cursor-default`;
+    if (state === 'mine-all') return `${base} bg-red-900/20 border-red-900/30 cursor-default`;
+    if (game?.status !== 'active') return `${base} bg-white/[0.03] border-white/5 cursor-default`;
+    if (revealing === idx)    return `${base} bg-white/20 border-white/50 cursor-default scale-95`;
     return `${base} bg-white/5 border-white/10 hover:bg-white/15 hover:border-white/30 cursor-pointer hover:scale-95`;
-  }, [game, revealing]);
+  }
 
-  const cellContent = (state: CellState) => {
-    if (state === 'safe') return '💎';
-    if (state === 'mine') return '💥';
+  function cellContent(state: CellState): string {
+    if (state === 'safe')     return '💎';
+    if (state === 'mine')     return '💥';
     if (state === 'mine-all') return '💣';
     return '';
-  };
+  }
 
   const isActive = game?.status === 'active';
-  const isEnded = game && (game.status === 'won' || game.status === 'lost');
+  const isEnded  = game?.status === 'won' || game?.status === 'lost';
 
   return (
     <div className="min-h-screen bg-black">
@@ -174,8 +187,8 @@ export default function MinesPage() {
           </div>
         </div>
 
-        {/* Controls */}
-        {!isActive && !isEnded && (
+        {/* Setup controls — shown before game starts */}
+        {!game && (
           <div className="border border-white/8 rounded-lg p-6 mb-6 space-y-5">
             <div>
               <label className="text-xs text-white/40 tracking-wider uppercase block mb-2">
@@ -243,9 +256,9 @@ export default function MinesPage() {
           </div>
         )}
 
-        {/* Active game info bar */}
-        {isActive && (
-          <div className="flex items-center justify-between border border-white/8 rounded-lg px-5 py-3 mb-4 bg-white/2">
+        {/* Active game HUD */}
+        {isActive && game && (
+          <div className="flex items-center justify-between border border-white/8 rounded-lg px-5 py-3 mb-4 bg-white/[0.02]">
             <div>
               <p className="text-white/30 text-xs">Bet</p>
               <p className="text-white font-mono font-bold">${game.bet}</p>
@@ -270,8 +283,15 @@ export default function MinesPage() {
           </div>
         )}
 
+        {/* In-game error */}
+        {game && msg && !isEnded && (
+          <p className="text-red-400 text-xs border border-red-400/20 bg-red-400/5 rounded px-3 py-2 mb-4">
+            {msg}
+          </p>
+        )}
+
         {/* Game result */}
-        {isEnded && (
+        {isEnded && game && (
           <div
             className={`border rounded-lg px-5 py-4 mb-4 flex items-center justify-between ${
               game.status === 'won'
@@ -295,7 +315,7 @@ export default function MinesPage() {
         )}
 
         {/* Grid */}
-        {game && (
+        {game ? (
           <div className="grid grid-cols-5 gap-1.5">
             {game.cells.map((state, idx) => (
               <button
@@ -308,9 +328,7 @@ export default function MinesPage() {
               </button>
             ))}
           </div>
-        )}
-
-        {!game && (
+        ) : (
           <div className="border border-white/5 rounded-lg grid grid-cols-5 gap-1.5 p-4 opacity-30">
             {Array(25).fill(null).map((_, i) => (
               <div key={i} className="aspect-square rounded bg-white/5 border border-white/5" />

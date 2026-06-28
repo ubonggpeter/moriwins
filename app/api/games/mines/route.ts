@@ -13,6 +13,13 @@ async function getAuthedUser() {
   return getUserById(payload.userId);
 }
 
+/** The postgres package in prepare:false mode may return JSONB as a raw string.
+ *  Always parse defensively. */
+function parseJsonb<T>(value: unknown): T {
+  if (typeof value === 'string') return JSON.parse(value) as T;
+  return value as T;
+}
+
 // POST — start a new mines game
 export async function POST(request: Request) {
   await initSchema();
@@ -31,27 +38,33 @@ export async function POST(request: Request) {
   const revealed = Array(25).fill(false);
   const gameId = uuidv4();
 
-  // Atomically deduct bet and create the game record
-  const newBalance = await sql.begin(async tx => {
-    const [updated] = await tx`
-      UPDATE users SET balance = balance - ${bet}
-      WHERE id = ${user.id} AND balance >= ${bet}
-      RETURNING balance
-    `;
-    if (!updated) throw new Error('Insufficient balance');
+  try {
+    const newBalance = await sql.begin(async tx => {
+      const [updated] = await tx`
+        UPDATE users SET balance = balance - ${bet}
+        WHERE id = ${user.id} AND balance >= ${bet}
+        RETURNING balance
+      `;
+      if (!updated) throw new Error('Insufficient balance');
 
-    await tx`
-      INSERT INTO mines_games (id, user_id, grid, revealed, bet, mine_count, status, revealed_safe)
-      VALUES (
-        ${gameId}, ${user.id},
-        ${JSON.stringify(grid)}, ${JSON.stringify(revealed)},
-        ${bet}, ${mineCount}, 'active', 0
-      )
-    `;
-    return updated.balance as number;
-  });
+      // Use sql.json() so the postgres driver sends proper JSONB, not TEXT
+      await tx`
+        INSERT INTO mines_games (id, user_id, grid, revealed, bet, mine_count, status, revealed_safe)
+        VALUES (
+          ${gameId}, ${user.id},
+          ${sql.json(grid)}, ${sql.json(revealed)},
+          ${bet}, ${mineCount}, 'active', 0
+        )
+      `;
+      return updated.balance as number;
+    });
 
-  return NextResponse.json({ gameId, bet, mineCount, balance: newBalance });
+    return NextResponse.json({ gameId, bet, mineCount, balance: newBalance });
+  } catch (err) {
+    console.error('[mines/POST]', err);
+    const message = err instanceof Error ? err.message : 'Failed to start game';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 // PATCH — reveal a cell or cash out
@@ -72,11 +85,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Game already ended' }, { status: 400 });
   }
 
-  const grid: boolean[] = row.grid;
-  const revealed: boolean[] = row.revealed;
-  const revealedSafe: number = row.revealed_safe;
-  const mineCount: number = row.mine_count;
-  const bet: number = row.bet;
+  // Defensively parse JSONB — may arrive as string in prepare:false mode
+  const grid     = parseJsonb<boolean[]>(row.grid);
+  const revealed = parseJsonb<boolean[]>(row.revealed);
+  const revealedSafe: number = Number(row.revealed_safe);
+  const mineCount: number    = Number(row.mine_count);
+  const bet: number          = Number(row.bet);
 
   // ── Reveal ────────────────────────────────────────────────────────────────
   if (action === 'reveal') {
@@ -90,34 +104,39 @@ export async function PATCH(request: Request) {
     const isMine = grid[cellIndex];
     revealed[cellIndex] = true;
 
-    if (isMine) {
+    try {
+      if (isMine) {
+        await sql`
+          UPDATE mines_games
+          SET status = 'lost', revealed = ${sql.json(revealed)}
+          WHERE id = ${gameId}
+        `;
+        return NextResponse.json({
+          isMine: true,
+          grid,           // already a JS array — safe to return directly
+          balance: user.balance,
+          payout: 0,
+          multiplier: 0,
+        });
+      }
+
+      const newRevealedSafe = revealedSafe + 1;
       await sql`
         UPDATE mines_games
-        SET status = 'lost', revealed = ${JSON.stringify(revealed)}
+        SET revealed = ${sql.json(revealed)}, revealed_safe = ${newRevealedSafe}
         WHERE id = ${gameId}
       `;
+      const multiplier = calcMinesMultiplier(25, mineCount, newRevealedSafe);
       return NextResponse.json({
-        isMine: true,
-        grid,
-        balance: user.balance,
-        payout: 0,
-        multiplier: 0,
+        isMine: false,
+        multiplier,
+        payout: Math.floor(bet * multiplier),
+        revealedSafe: newRevealedSafe,
       });
+    } catch (err) {
+      console.error('[mines/PATCH reveal]', err);
+      return NextResponse.json({ error: 'Failed to reveal cell' }, { status: 500 });
     }
-
-    const newRevealedSafe = revealedSafe + 1;
-    await sql`
-      UPDATE mines_games
-      SET revealed = ${JSON.stringify(revealed)}, revealed_safe = ${newRevealedSafe}
-      WHERE id = ${gameId}
-    `;
-    const multiplier = calcMinesMultiplier(25, mineCount, newRevealedSafe);
-    return NextResponse.json({
-      isMine: false,
-      multiplier,
-      payout: Math.floor(bet * multiplier),
-      revealedSafe: newRevealedSafe,
-    });
   }
 
   // ── Cash out ───────────────────────────────────────────────────────────────
@@ -129,17 +148,22 @@ export async function PATCH(request: Request) {
     const multiplier = calcMinesMultiplier(25, mineCount, revealedSafe);
     const payout = Math.floor(bet * multiplier);
 
-    const newBalance = await sql.begin(async tx => {
-      await tx`UPDATE mines_games SET status = 'won' WHERE id = ${gameId}`;
-      const [updated] = await tx`
-        UPDATE users SET balance = balance + ${payout}
-        WHERE id = ${user.id}
-        RETURNING balance
-      `;
-      return updated.balance as number;
-    });
+    try {
+      const newBalance = await sql.begin(async tx => {
+        await tx`UPDATE mines_games SET status = 'won' WHERE id = ${gameId}`;
+        const [updated] = await tx`
+          UPDATE users SET balance = balance + ${payout}
+          WHERE id = ${user.id}
+          RETURNING balance
+        `;
+        return updated.balance as number;
+      });
 
-    return NextResponse.json({ payout, multiplier, balance: newBalance });
+      return NextResponse.json({ payout, multiplier, balance: newBalance });
+    } catch (err) {
+      console.error('[mines/PATCH cashout]', err);
+      return NextResponse.json({ error: 'Failed to cashout' }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
