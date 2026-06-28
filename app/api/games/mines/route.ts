@@ -2,24 +2,24 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth';
-import { getUserById, updateUser } from '@/lib/db';
-import { activeMinesGames, createMinesGame, revealCell, cashoutMines, calcMinesMultiplier } from '@/lib/games';
+import { sql, getUserById, initSchema } from '@/lib/db';
+import { createMineGrid, calcMinesMultiplier } from '@/lib/games';
 
-async function getUser() {
+async function getAuthedUser() {
   const token = cookies().get('token')?.value;
   if (!token) return null;
   const payload = await verifyToken(token);
   if (!payload) return null;
-  return getUserById(payload.userId) ?? null;
+  return getUserById(payload.userId);
 }
 
-// POST /api/games/mines — start a new game
+// POST — start a new mines game
 export async function POST(request: Request) {
-  const user = await getUser();
+  await initSchema();
+  const user = await getAuthedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { bet, mineCount } = await request.json();
-
   if (!bet || bet <= 0 || bet > user.balance) {
     return NextResponse.json({ error: 'Invalid bet amount' }, { status: 400 });
   }
@@ -27,76 +27,119 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Mines must be between 1 and 20' }, { status: 400 });
   }
 
-  // Deduct bet immediately
-  updateUser(user.id, { balance: user.balance - bet });
+  const grid = createMineGrid(mineCount);
+  const revealed = Array(25).fill(false);
+  const gameId = uuidv4();
 
-  const game = createMinesGame(uuidv4(), user.id, bet, mineCount);
+  // Atomically deduct bet and create the game record
+  const newBalance = await sql.begin(async tx => {
+    const [updated] = await tx`
+      UPDATE users SET balance = balance - ${bet}
+      WHERE id = ${user.id} AND balance >= ${bet}
+      RETURNING balance
+    `;
+    if (!updated) throw new Error('Insufficient balance');
 
-  return NextResponse.json({
-    gameId: game.id,
-    bet: game.bet,
-    mineCount: game.mineCount,
-    balance: user.balance - bet,
+    await tx`
+      INSERT INTO mines_games (id, user_id, grid, revealed, bet, mine_count, status, revealed_safe)
+      VALUES (
+        ${gameId}, ${user.id},
+        ${JSON.stringify(grid)}, ${JSON.stringify(revealed)},
+        ${bet}, ${mineCount}, 'active', 0
+      )
+    `;
+    return updated.balance as number;
   });
+
+  return NextResponse.json({ gameId, bet, mineCount, balance: newBalance });
 }
 
-// PATCH /api/games/mines — reveal a cell or cashout
+// PATCH — reveal a cell or cash out
 export async function PATCH(request: Request) {
-  const user = await getUser();
+  await initSchema();
+  const user = await getAuthedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { gameId, action, cellIndex } = await request.json();
 
-  const game = activeMinesGames.get(gameId);
-  if (!game || game.userId !== user.id) {
+  const rows = await sql`SELECT * FROM mines_games WHERE id = ${gameId}`;
+  if (!rows.length || rows[0].user_id !== user.id) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   }
-  if (game.status !== 'active') {
+
+  const row = rows[0];
+  if (row.status !== 'active') {
     return NextResponse.json({ error: 'Game already ended' }, { status: 400 });
   }
 
+  const grid: boolean[] = row.grid;
+  const revealed: boolean[] = row.revealed;
+  const revealedSafe: number = row.revealed_safe;
+  const mineCount: number = row.mine_count;
+  const bet: number = row.bet;
+
+  // ── Reveal ────────────────────────────────────────────────────────────────
   if (action === 'reveal') {
     if (cellIndex === undefined || cellIndex < 0 || cellIndex >= 25) {
-      return NextResponse.json({ error: 'Invalid cell' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid cell index' }, { status: 400 });
     }
-    if (game.revealed[cellIndex]) {
+    if (revealed[cellIndex]) {
       return NextResponse.json({ error: 'Cell already revealed' }, { status: 400 });
     }
 
-    const result = revealCell(game, cellIndex);
+    const isMine = grid[cellIndex];
+    revealed[cellIndex] = true;
 
-    if (result.isMine) {
-      // Lost — reveal all mines
+    if (isMine) {
+      await sql`
+        UPDATE mines_games
+        SET status = 'lost', revealed = ${JSON.stringify(revealed)}
+        WHERE id = ${gameId}
+      `;
       return NextResponse.json({
         isMine: true,
-        grid: game.grid,
-        balance: getUserById(user.id)!.balance,
+        grid,
+        balance: user.balance,
         payout: 0,
         multiplier: 0,
       });
     }
 
+    const newRevealedSafe = revealedSafe + 1;
+    await sql`
+      UPDATE mines_games
+      SET revealed = ${JSON.stringify(revealed)}, revealed_safe = ${newRevealedSafe}
+      WHERE id = ${gameId}
+    `;
+    const multiplier = calcMinesMultiplier(25, mineCount, newRevealedSafe);
     return NextResponse.json({
       isMine: false,
-      multiplier: result.multiplier,
-      payout: result.payout,
-      revealedSafe: game.revealedSafe,
+      multiplier,
+      payout: Math.floor(bet * multiplier),
+      revealedSafe: newRevealedSafe,
     });
   }
 
+  // ── Cash out ───────────────────────────────────────────────────────────────
   if (action === 'cashout') {
-    if (game.revealedSafe === 0) {
+    if (revealedSafe === 0) {
       return NextResponse.json({ error: 'Reveal at least one cell first' }, { status: 400 });
     }
-    const payout = cashoutMines(game);
-    const updatedUser = updateUser(user.id, { balance: getUserById(user.id)!.balance + payout });
-    const multiplier = calcMinesMultiplier(25, game.mineCount, game.revealedSafe);
 
-    return NextResponse.json({
-      payout,
-      multiplier,
-      balance: updatedUser!.balance,
+    const multiplier = calcMinesMultiplier(25, mineCount, revealedSafe);
+    const payout = Math.floor(bet * multiplier);
+
+    const newBalance = await sql.begin(async tx => {
+      await tx`UPDATE mines_games SET status = 'won' WHERE id = ${gameId}`;
+      const [updated] = await tx`
+        UPDATE users SET balance = balance + ${payout}
+        WHERE id = ${user.id}
+        RETURNING balance
+      `;
+      return updated.balance as number;
     });
+
+    return NextResponse.json({ payout, multiplier, balance: newBalance });
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

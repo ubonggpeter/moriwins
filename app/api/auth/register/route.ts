@@ -11,21 +11,18 @@ export async function POST(request: Request) {
     if (!username || !email || !password) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
-
     if (password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
-
-    if (getUserByEmail(email)) {
+    if (await getUserByEmail(email)) {
       return NextResponse.json({ error: 'Email already in use' }, { status: 400 });
     }
-
-    if (getUserByUsername(username)) {
+    if (await getUserByUsername(username)) {
       return NextResponse.json({ error: 'Username already taken' }, { status: 400 });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = createUser({
+    const user = await createUser({
       id: uuidv4(),
       username,
       email,
@@ -35,18 +32,15 @@ export async function POST(request: Request) {
     });
 
     const token = await signToken({ userId: user.id, username: user.username });
-
     const res = NextResponse.json({
       user: { id: user.id, username: user.username, email: user.email, balance: user.balance },
     });
-
     res.cookies.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
     });
-
     return res;
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
