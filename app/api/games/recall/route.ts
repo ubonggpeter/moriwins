@@ -17,13 +17,29 @@ function parseJsonb<T>(v: unknown): T {
   return typeof v === 'string' ? JSON.parse(v) as T : v as T;
 }
 
-// POST — start game: deduct bet, pick random text, generate questions
+// POST — start game (earning mode) or generate questions (training mode)
 export async function POST(request: Request) {
   await initSchema();
+  const body = await request.json();
+
+  // Training mode — no bet, no DB write, return questions with correctIndex for client-side grading
+  if (body.training) {
+    const text = (body.text as string)?.trim();
+    const difficulty = (body.difficulty as Difficulty) ?? 'Normal';
+    if (!text) return NextResponse.json({ error: 'No text provided' }, { status: 400 });
+    if (!(difficulty in DIFFICULTY_CONFIG)) return NextResponse.json({ error: 'Invalid difficulty' }, { status: 400 });
+    const questions = generateRecallQuestions(text, difficulty);
+    if (questions.length === 0) {
+      return NextResponse.json({ error: 'Text too short to generate questions — try a longer passage' }, { status: 400 });
+    }
+    return NextResponse.json({ training: true, questions, questionCount: questions.length });
+  }
+
+  // Earning mode
   const user = await getAuthedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { bet } = await request.json();
+  const { bet } = body;
   if (!bet || bet <= 0 || bet > user.balance) {
     return NextResponse.json({ error: 'Invalid bet amount' }, { status: 400 });
   }

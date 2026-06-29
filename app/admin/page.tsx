@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 
@@ -51,6 +51,12 @@ export default function AdminPage() {
   const [showAddRecall, setShowAddRecall] = useState(false);
   const [newRecall, setNewRecall] = useState({ title: '', textContent: '', difficulty: 'Normal', disappearsAfterReading: false });
   const [recallSaving, setRecallSaving] = useState(false);
+  const [recallUploadMode, setRecallUploadMode] = useState<'paste' | 'upload'>('paste');
+  const [recallUploading, setRecallUploading] = useState(false);
+  const addFileInputRef = useRef<HTMLInputElement>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState({ title: '', textContent: '', difficulty: 'Normal', disappearsAfterReading: false });
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     fetch('/api/user')
@@ -82,11 +88,25 @@ export default function AdminPage() {
   }
   function loadGameStatus() {
     fetch('/api/games/status').then(r => r.json()).then(d => {
-      setGameMuted({ mines: !!d.mines?.muted, memory: !!d.memory?.muted });
+      setGameMuted({ mines: !!d.mines?.muted, memory: !!d.memory?.muted, recall: !!d.recall?.muted });
     }).catch(() => {});
   }
   function loadRecallTexts() {
     fetch('/api/admin/recall-texts').then(r => r.json()).then(d => setRecallTexts(d.texts ?? [])).catch(() => {});
+  }
+  async function uploadRecallFile(file: File) {
+    setRecallUploading(true);
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/games/recall/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    setRecallUploading(false);
+    if (res.ok && data.text) {
+      const title = file.name.replace(/\.[^/.]+$/, '');
+      setNewRecall(p => ({ ...p, title: p.title || title, textContent: data.text }));
+    } else {
+      alert(data.error ?? 'Failed to extract text');
+    }
   }
   async function addRecallText() {
     if (!newRecall.title.trim() || !newRecall.textContent.trim()) return;
@@ -98,6 +118,7 @@ export default function AdminPage() {
     });
     setRecallSaving(false);
     setShowAddRecall(false);
+    setRecallUploadMode('paste');
     setNewRecall({ title: '', textContent: '', difficulty: 'Normal', disappearsAfterReading: false });
     loadRecallTexts();
   }
@@ -109,9 +130,26 @@ export default function AdminPage() {
     });
     loadRecallTexts();
   }
+  async function updateRecallText(id: string) {
+    setEditSaving(true);
+    await fetch(`/api/admin/recall-texts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: editData.title,
+        textContent: editData.textContent,
+        difficulty: editData.difficulty,
+        disappearsAfterReading: editData.disappearsAfterReading,
+      }),
+    });
+    setEditSaving(false);
+    setEditingId(null);
+    loadRecallTexts();
+  }
   async function deleteRecallText(id: string) {
     if (!confirm('Delete this text?')) return;
     await fetch(`/api/admin/recall-texts/${id}`, { method: 'DELETE' });
+    if (editingId === id) setEditingId(null);
     loadRecallTexts();
   }
 
@@ -459,8 +497,18 @@ export default function AdminPage() {
                 </button>
               </div>
 
+              {/* Hidden file input for add form */}
+              <input
+                ref={addFileInputRef}
+                type="file"
+                accept=".pdf,.docx"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadRecallFile(f); e.target.value = ''; }}
+              />
+
               {showAddRecall && (
-                <div className="bg-[#111111] rounded-2xl p-5 mb-3 space-y-4">
+                <div className="bg-[#0d0d0d] border border-white/[0.06] rounded-2xl p-5 mb-3 space-y-4">
+                  {/* Title */}
                   <div>
                     <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Title</label>
                     <input
@@ -471,16 +519,54 @@ export default function AdminPage() {
                       className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
                     />
                   </div>
+
+                  {/* Content method toggle */}
                   <div>
-                    <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Text Content</label>
-                    <textarea
-                      value={newRecall.textContent}
-                      onChange={e => setNewRecall(p => ({ ...p, textContent: e.target.value }))}
-                      rows={5}
-                      placeholder="Write the passage users will read and recall..."
-                      className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20 resize-none"
-                    />
+                    <label className="text-white/40 text-xs uppercase tracking-wider block mb-2">Text Content</label>
+                    <div className="flex gap-2 mb-3">
+                      {(['paste', 'upload'] as const).map(m => (
+                        <button
+                          key={m}
+                          onClick={() => setRecallUploadMode(m)}
+                          className={`flex-1 py-2 rounded-full text-xs font-bold transition-all ${
+                            recallUploadMode === m
+                              ? 'bg-white text-black'
+                              : 'bg-[#1c1c1c] text-white/40 border border-white/[0.08] hover:text-white'
+                          }`}
+                        >
+                          {m === 'paste' ? '✏️ Paste' : '📄 PDF / DOCX'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {recallUploadMode === 'paste' ? (
+                      <textarea
+                        value={newRecall.textContent}
+                        onChange={e => setNewRecall(p => ({ ...p, textContent: e.target.value }))}
+                        rows={5}
+                        placeholder="Write the passage users will read and recall..."
+                        className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20 resize-none"
+                      />
+                    ) : (
+                      <div>
+                        <button
+                          onClick={() => addFileInputRef.current?.click()}
+                          disabled={recallUploading}
+                          className="w-full border-2 border-dashed border-white/15 rounded-xl p-6 text-center hover:border-white/25 transition-colors disabled:opacity-50"
+                        >
+                          <p className="text-2xl mb-2">{recallUploading ? '⏳' : newRecall.textContent ? '✅' : '📄'}</p>
+                          <p className="text-white/50 text-sm">
+                            {recallUploading ? 'Extracting...' : newRecall.textContent ? 'Extracted — tap to replace' : 'Tap to upload PDF or DOCX'}
+                          </p>
+                        </button>
+                        {newRecall.textContent && (
+                          <p className="text-white/25 text-xs mt-2 line-clamp-2">{newRecall.textContent.slice(0, 120)}…</p>
+                        )}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Difficulty + disappears */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Difficulty</label>
@@ -506,9 +592,10 @@ export default function AdminPage() {
                       </label>
                     </div>
                   </div>
+
                   <button
                     onClick={addRecallText}
-                    disabled={recallSaving || !newRecall.title.trim() || !newRecall.textContent.trim()}
+                    disabled={recallSaving || recallUploading || !newRecall.title.trim() || !newRecall.textContent.trim()}
                     className="w-full bg-yellow-400 text-black font-bold text-sm py-3 rounded-full disabled:opacity-40 hover:bg-yellow-300 transition-colors"
                   >
                     {recallSaving ? 'Saving...' : 'Save Text'}
@@ -521,8 +608,9 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-2">
                   {recallTexts.map(t => (
-                    <div key={t.id} className="bg-[#111111] rounded-2xl p-4">
-                      <div className="flex items-start justify-between gap-3">
+                    <div key={t.id} className="bg-[#111111] rounded-2xl overflow-hidden">
+                      {/* Row */}
+                      <div className="p-4 flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <p className="text-white font-bold text-sm truncate">{t.title}</p>
@@ -531,7 +619,7 @@ export default function AdminPage() {
                           </div>
                           <p className="text-white/30 text-xs line-clamp-2">{t.text_content}</p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                           <button
                             onClick={() => toggleTextActive(t.id, !t.is_active)}
                             className={`text-[10px] font-bold px-3 py-1.5 rounded-full transition-colors ${
@@ -541,6 +629,16 @@ export default function AdminPage() {
                             {t.is_active ? 'Active' : 'Inactive'}
                           </button>
                           <button
+                            onClick={() => {
+                              if (editingId === t.id) { setEditingId(null); return; }
+                              setEditingId(t.id);
+                              setEditData({ title: t.title, textContent: t.text_content, difficulty: t.difficulty, disappearsAfterReading: t.disappears_after_reading });
+                            }}
+                            className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-white/10 text-white/60 hover:bg-white/15 transition-colors"
+                          >
+                            {editingId === t.id ? 'Cancel' : 'Edit'}
+                          </button>
+                          <button
                             onClick={() => deleteRecallText(t.id)}
                             className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
                           >
@@ -548,6 +646,57 @@ export default function AdminPage() {
                           </button>
                         </div>
                       </div>
+
+                      {/* Inline edit form */}
+                      {editingId === t.id && (
+                        <div className="border-t border-white/[0.06] p-4 space-y-3 bg-[#0d0d0d]">
+                          <div>
+                            <label className="text-white/30 text-[10px] uppercase tracking-wider block mb-1">Title</label>
+                            <input
+                              type="text"
+                              value={editData.title}
+                              onChange={e => setEditData(p => ({ ...p, title: e.target.value }))}
+                              className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-white/20"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-white/30 text-[10px] uppercase tracking-wider block mb-1">Text Content</label>
+                            <textarea
+                              value={editData.textContent}
+                              onChange={e => setEditData(p => ({ ...p, textContent: e.target.value }))}
+                              rows={4}
+                              className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-white/20 resize-none"
+                            />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <select
+                              value={editData.difficulty}
+                              onChange={e => setEditData(p => ({ ...p, difficulty: e.target.value }))}
+                              className="flex-1 bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-white/20"
+                            >
+                              {['Very Simple','Simple','Normal','Complex','Difficult'].map(d => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                            </select>
+                            <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={editData.disappearsAfterReading}
+                                onChange={e => setEditData(p => ({ ...p, disappearsAfterReading: e.target.checked }))}
+                                className="w-4 h-4 accent-yellow-400"
+                              />
+                              <span className="text-white/40 text-xs">Vanishes</span>
+                            </label>
+                          </div>
+                          <button
+                            onClick={() => updateRecallText(t.id)}
+                            disabled={editSaving || !editData.title.trim() || !editData.textContent.trim()}
+                            className="w-full bg-white text-black font-bold text-xs py-2.5 rounded-full disabled:opacity-40 hover:bg-gray-100 transition-colors"
+                          >
+                            {editSaving ? 'Saving...' : 'Save Changes'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
