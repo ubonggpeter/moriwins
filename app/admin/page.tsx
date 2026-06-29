@@ -40,6 +40,7 @@ export default function AdminPage() {
 
   const [threshold, setThreshold] = useState('10000');
   const [depositInfo, setDepositInfo] = useState('[]');
+  const [leaderboardMin, setLeaderboardMin] = useState('0');
   const [settingsSaved, setSettingsSaved] = useState(false);
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function AdminPage() {
     fetch('/api/admin/settings').then(r => r.json()).then(d => {
       if (d.threshold !== undefined) setThreshold(String(d.threshold));
       if (d.depositInfo !== undefined) setDepositInfo(JSON.stringify(d.depositInfo, null, 2));
+      if (d.leaderboardMinEarnings !== undefined) setLeaderboardMin(String(d.leaderboardMinEarnings));
     }).catch(() => {});
   }
 
@@ -96,7 +98,11 @@ export default function AdminPage() {
     await fetch('/api/admin/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ threshold: parseInt(threshold, 10), depositInfo: parsed }),
+      body: JSON.stringify({
+        threshold: parseInt(threshold, 10),
+        depositInfo: parsed,
+        leaderboardMinEarnings: parseInt(leaderboardMin, 10) || 0,
+      }),
     });
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2000);
@@ -301,6 +307,21 @@ export default function AdminPage() {
               />
               <p className="text-white/20 text-xs mt-1">
                 Users must have at least this balance to request a withdrawal
+              </p>
+            </div>
+            <div>
+              <label className="text-white/40 text-xs uppercase tracking-wider block mb-2">
+                Leaderboard Minimum Earnings ($)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={leaderboardMin}
+                onChange={e => setLeaderboardMin(e.target.value)}
+                className="bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-3 text-white font-mono text-sm w-full focus:outline-none focus:border-white/20"
+              />
+              <p className="text-white/20 text-xs mt-1">
+                Only users with earnings at or above this amount appear on the leaderboard
               </p>
             </div>
             <div>

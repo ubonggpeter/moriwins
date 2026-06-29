@@ -117,6 +117,7 @@ export async function initSchema(): Promise<void> {
     `;
     await sql`INSERT INTO app_settings (key, value) VALUES ('withdrawal_threshold', '10000') ON CONFLICT (key) DO NOTHING`;
     await sql`INSERT INTO app_settings (key, value) VALUES ('deposit_info', '[]') ON CONFLICT (key) DO NOTHING`;
+    await sql`INSERT INTO app_settings (key, value) VALUES ('leaderboard_min_earnings', '0') ON CONFLICT (key) DO NOTHING`;
 
     schemaInitialized = true;
   } catch (err) {
@@ -140,7 +141,7 @@ function rowToUser(r: Record<string, unknown>): User {
     passwordHash: r.password_hash as string,
     balance: Number(r.balance),
     createdAt: (r.created_at as Date).toISOString(),
-    isAdmin: parseBool(r.is_admin),
+    isAdmin: r.is_admin === true || r.is_admin === 1,
     referralCode: (r.referral_code as string) ?? '',
     referredBy: (r.referred_by as string) ?? null,
     referralEarnings: Number(r.referral_earnings ?? 0),

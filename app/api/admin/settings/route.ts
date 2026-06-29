@@ -19,10 +19,12 @@ export async function GET() {
 
   const threshold = await getSetting('withdrawal_threshold', '10000');
   const depositInfo = await getSetting('deposit_info', '[]');
+  const leaderboardMinEarnings = await getSetting('leaderboard_min_earnings', '0');
 
   return NextResponse.json({
     threshold: parseInt(threshold, 10),
     depositInfo: JSON.parse(depositInfo),
+    leaderboardMinEarnings: parseInt(leaderboardMinEarnings, 10),
   });
 }
 
@@ -31,12 +33,15 @@ export async function PATCH(request: Request) {
   const admin = await getAdmin();
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { threshold, depositInfo } = await request.json();
+  const { threshold, depositInfo, leaderboardMinEarnings } = await request.json();
   if (threshold !== undefined) {
     await setSetting('withdrawal_threshold', String(Math.max(0, Math.floor(threshold))));
   }
   if (depositInfo !== undefined) {
     await setSetting('deposit_info', JSON.stringify(depositInfo));
+  }
+  if (leaderboardMinEarnings !== undefined) {
+    await setSetting('leaderboard_min_earnings', String(Math.max(0, Math.floor(leaderboardMinEarnings))));
   }
 
   return NextResponse.json({ success: true });
