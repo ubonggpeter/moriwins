@@ -129,6 +129,8 @@ export async function initSchema(): Promise<void> {
     await sql`INSERT INTO app_settings (key, value) VALUES ('withdrawal_threshold', '10000') ON CONFLICT (key) DO NOTHING`;
     await sql`INSERT INTO app_settings (key, value) VALUES ('deposit_info', '[]') ON CONFLICT (key) DO NOTHING`;
     await sql`INSERT INTO app_settings (key, value) VALUES ('leaderboard_min_earnings', '0') ON CONFLICT (key) DO NOTHING`;
+    await sql`INSERT INTO app_settings (key, value) VALUES ('game_muted_mines', 'false') ON CONFLICT (key) DO NOTHING`;
+    await sql`INSERT INTO app_settings (key, value) VALUES ('game_muted_memory', 'false') ON CONFLICT (key) DO NOTHING`;
 
     schemaInitialized = true;
   } catch (err) {

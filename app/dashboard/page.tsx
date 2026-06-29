@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [referral, setReferral] = useState<ReferralStats | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mutedGames, setMutedGames] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch('/api/user')
@@ -51,6 +52,10 @@ export default function DashboardPage() {
     fetch('/api/referral')
       .then(r => r.json())
       .then(d => { if (d.referralCode) setReferral(d); })
+      .catch(() => {});
+    fetch('/api/games/status')
+      .then(r => r.json())
+      .then(d => setMutedGames({ mines: !!d.mines?.muted, memory: !!d.memory?.muted }))
       .catch(() => {});
   }, []);
 
@@ -186,25 +191,41 @@ export default function DashboardPage() {
         {/* Game cards */}
         <p className="text-white/30 text-xs tracking-widest uppercase mb-3">Play Now</p>
         <div className="space-y-3 mb-6">
-          {GAMES.map(g => (
-            <Link
-              key={g.title}
-              href={g.href}
-              className="bg-[#111111] rounded-2xl p-5 flex items-center gap-4 group"
-            >
-              <span className="text-3xl">{g.icon}</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="text-white font-bold text-sm">{g.title}</p>
-                  <span className={`text-[9px] tracking-wider ${g.tagColor}`}>{g.tag}</span>
+          {GAMES.map(g => {
+            const isMuted = mutedGames[g.title.toLowerCase()];
+            const inner = (
+              <>
+                <span className="text-3xl">{g.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className={`font-bold text-sm ${isMuted ? 'text-white/40' : 'text-white'}`}>{g.title}</p>
+                    {isMuted
+                      ? <span className="text-[9px] tracking-wider text-orange-400">MAINTENANCE</span>
+                      : <span className={`text-[9px] tracking-wider ${g.tagColor}`}>{g.tag}</span>}
+                  </div>
+                  <p className="text-white/35 text-xs truncate">{g.desc}</p>
                 </div>
-                <p className="text-white/35 text-xs truncate">{g.desc}</p>
+                {isMuted ? (
+                  <div className="bg-white/10 text-white/30 font-bold text-xs px-4 py-2 rounded-full shrink-0">
+                    N/A
+                  </div>
+                ) : (
+                  <div className="bg-white text-black font-bold text-xs px-4 py-2 rounded-full shrink-0">
+                    Play
+                  </div>
+                )}
+              </>
+            );
+            return isMuted ? (
+              <div key={g.title} className="bg-[#111111] rounded-2xl p-5 flex items-center gap-4 opacity-60">
+                {inner}
               </div>
-              <div className="bg-white text-black font-bold text-xs px-4 py-2 rounded-full shrink-0">
-                Play
-              </div>
-            </Link>
-          ))}
+            ) : (
+              <Link key={g.title} href={g.href} className="bg-[#111111] rounded-2xl p-5 flex items-center gap-4 group">
+                {inner}
+              </Link>
+            );
+          })}
         </div>
 
         {/* Leaderboard */}

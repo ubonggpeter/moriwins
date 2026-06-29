@@ -29,7 +29,7 @@ interface AdminWithdrawal {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings'>('users');
+  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games'>('users');
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -43,6 +43,9 @@ export default function AdminPage() {
   const [leaderboardMin, setLeaderboardMin] = useState('0');
   const [settingsSaved, setSettingsSaved] = useState(false);
 
+  const [gameMuted, setGameMuted] = useState<Record<string, boolean>>({ mines: false, memory: false });
+  const [gameToggling, setGameToggling] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     fetch('/api/user')
       .then(r => r.json())
@@ -52,6 +55,7 @@ export default function AdminPage() {
         loadUsers();
         loadWithdrawals();
         loadSettings();
+        loadGameStatus();
       })
       .catch(() => router.replace('/dashboard'));
   }, [router]);
@@ -68,6 +72,21 @@ export default function AdminPage() {
       if (d.depositInfo !== undefined) setDepositInfo(JSON.stringify(d.depositInfo, null, 2));
       if (d.leaderboardMinEarnings !== undefined) setLeaderboardMin(String(d.leaderboardMinEarnings));
     }).catch(() => {});
+  }
+  function loadGameStatus() {
+    fetch('/api/games/status').then(r => r.json()).then(d => {
+      setGameMuted({ mines: !!d.mines?.muted, memory: !!d.memory?.muted });
+    }).catch(() => {});
+  }
+  async function toggleGame(game: string, muted: boolean) {
+    setGameToggling(prev => ({ ...prev, [game]: true }));
+    await fetch('/api/admin/games', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game, muted }),
+    });
+    setGameMuted(prev => ({ ...prev, [game]: muted }));
+    setGameToggling(prev => ({ ...prev, [game]: false }));
   }
 
   async function adjustBalance(userId: string) {
@@ -120,6 +139,7 @@ export default function AdminPage() {
     { key: 'users' as const, label: 'Users' },
     { key: 'withdrawals' as const, label: 'Withdrawals' },
     { key: 'settings' as const, label: 'Settings' },
+    { key: 'games' as const, label: 'Games' },
   ];
 
   const pendingCount = withdrawals.filter(w => w.status === 'pending').length;
@@ -347,6 +367,45 @@ export default function AdminPage() {
             >
               {settingsSaved ? '✓ Saved!' : 'Save Settings'}
             </button>
+          </div>
+        )}
+
+        {tab === 'games' && (
+          <div className="space-y-3">
+            {[
+              { key: 'mines', label: 'Mines', icon: '💎', desc: 'Minesweeper · Bet-based' },
+              { key: 'memory', label: 'Memory', icon: '🃏', desc: 'Card Match · Skill-based' },
+            ].map(g => {
+              const isMuted = gameMuted[g.key];
+              const toggling = gameToggling[g.key];
+              return (
+                <div key={g.key} className="bg-[#111111] rounded-2xl p-5 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{g.icon}</span>
+                    <div>
+                      <p className="text-white font-bold text-sm">{g.label}</p>
+                      <p className="text-white/30 text-xs">{g.desc}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-bold ${isMuted ? 'text-red-400' : 'text-green-400'}`}>
+                      {isMuted ? 'MUTED' : 'LIVE'}
+                    </span>
+                    <button
+                      onClick={() => toggleGame(g.key, !isMuted)}
+                      disabled={toggling}
+                      className={`font-bold text-xs px-5 py-2 rounded-full transition-colors disabled:opacity-40 ${
+                        isMuted
+                          ? 'bg-green-500 text-black hover:bg-green-400'
+                          : 'bg-red-500/80 text-white hover:bg-red-500'
+                      }`}
+                    >
+                      {toggling ? '...' : isMuted ? 'Unmute' : 'Mute'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

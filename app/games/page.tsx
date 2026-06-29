@@ -1,10 +1,12 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 
 const GAMES = [
   {
+    key: 'mines' as const,
     title: 'Mines',
     subtitle: 'Minesweeper · Bet-based',
     desc: 'Reveal cells and avoid mines. Cash out anytime before you explode.',
@@ -15,6 +17,7 @@ const GAMES = [
     rtp: '97% RTP',
   },
   {
+    key: 'memory' as const,
     title: 'Memory',
     subtitle: 'Card Match · Skill-based',
     desc: 'Memorize the card layout and match all pairs to win.',
@@ -28,6 +31,14 @@ const GAMES = [
 
 export default function GamesPage() {
   const router = useRouter();
+  const [muted, setMuted] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    fetch('/api/games/status')
+      .then(r => r.json())
+      .then(d => setMuted({ mines: !!d.mines?.muted, memory: !!d.memory?.muted }))
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="min-h-screen bg-black pb-20">
@@ -51,29 +62,46 @@ export default function GamesPage() {
 
         {/* Game cards */}
         <div className="space-y-4">
-          {GAMES.map(g => (
-            <Link
-              key={g.title}
-              href={g.href}
-              className="block bg-[#111111] rounded-2xl p-5"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <span className="text-4xl">{g.icon}</span>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] tracking-wider ${g.tagColor}`}>{g.tag}</span>
-                  <span className="text-[10px] text-white/25 border border-white/10 px-2 py-0.5 rounded-full">
-                    {g.rtp}
-                  </span>
+          {GAMES.map(g => {
+            const isMuted = muted[g.key];
+            const cardClass = `block bg-[#111111] rounded-2xl p-5 ${isMuted ? 'opacity-60' : ''}`;
+
+            const inner = (
+              <>
+                <div className="flex items-start justify-between mb-4">
+                  <span className="text-4xl">{g.icon}</span>
+                  <div className="flex items-center gap-2">
+                    {isMuted ? (
+                      <span className="text-[10px] tracking-wider text-orange-400">MAINTENANCE</span>
+                    ) : (
+                      <span className={`text-[10px] tracking-wider ${g.tagColor}`}>{g.tag}</span>
+                    )}
+                    <span className="text-[10px] text-white/25 border border-white/10 px-2 py-0.5 rounded-full">
+                      {g.rtp}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <p className="text-white font-bold text-base mb-1">{g.title}</p>
-              <p className="text-white/35 text-xs mb-1">{g.subtitle}</p>
-              <p className="text-white/30 text-xs leading-relaxed mb-4">{g.desc}</p>
-              <div className="bg-white text-black font-bold text-sm py-3 rounded-full text-center">
-                Play {g.title}
-              </div>
-            </Link>
-          ))}
+                <p className="text-white font-bold text-base mb-1">{g.title}</p>
+                <p className="text-white/35 text-xs mb-1">{g.subtitle}</p>
+                <p className="text-white/30 text-xs leading-relaxed mb-4">{g.desc}</p>
+                {isMuted ? (
+                  <div className="bg-white/10 text-white/40 font-bold text-sm py-3 rounded-full text-center cursor-not-allowed">
+                    Unavailable
+                  </div>
+                ) : (
+                  <div className="bg-white text-black font-bold text-sm py-3 rounded-full text-center">
+                    Play {g.title}
+                  </div>
+                )}
+              </>
+            );
+
+            return isMuted ? (
+              <div key={g.key} className={cardClass}>{inner}</div>
+            ) : (
+              <Link key={g.key} href={g.href} className={cardClass}>{inner}</Link>
+            );
+          })}
         </div>
 
       </div>
