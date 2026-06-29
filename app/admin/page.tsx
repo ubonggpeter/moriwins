@@ -43,8 +43,14 @@ export default function AdminPage() {
   const [leaderboardMin, setLeaderboardMin] = useState('0');
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  const [gameMuted, setGameMuted] = useState<Record<string, boolean>>({ mines: false, memory: false });
+  const [gameMuted, setGameMuted] = useState<Record<string, boolean>>({ mines: false, memory: false, recall: false });
   const [gameToggling, setGameToggling] = useState<Record<string, boolean>>({});
+
+  interface RecallText { id: string; title: string; text_content: string; difficulty: string; disappears_after_reading: boolean; is_active: boolean; }
+  const [recallTexts, setRecallTexts] = useState<RecallText[]>([]);
+  const [showAddRecall, setShowAddRecall] = useState(false);
+  const [newRecall, setNewRecall] = useState({ title: '', textContent: '', difficulty: 'Normal', disappearsAfterReading: false });
+  const [recallSaving, setRecallSaving] = useState(false);
 
   useEffect(() => {
     fetch('/api/user')
@@ -56,6 +62,7 @@ export default function AdminPage() {
         loadWithdrawals();
         loadSettings();
         loadGameStatus();
+        loadRecallTexts();
       })
       .catch(() => router.replace('/dashboard'));
   }, [router]);
@@ -78,6 +85,36 @@ export default function AdminPage() {
       setGameMuted({ mines: !!d.mines?.muted, memory: !!d.memory?.muted });
     }).catch(() => {});
   }
+  function loadRecallTexts() {
+    fetch('/api/admin/recall-texts').then(r => r.json()).then(d => setRecallTexts(d.texts ?? [])).catch(() => {});
+  }
+  async function addRecallText() {
+    if (!newRecall.title.trim() || !newRecall.textContent.trim()) return;
+    setRecallSaving(true);
+    await fetch('/api/admin/recall-texts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRecall),
+    });
+    setRecallSaving(false);
+    setShowAddRecall(false);
+    setNewRecall({ title: '', textContent: '', difficulty: 'Normal', disappearsAfterReading: false });
+    loadRecallTexts();
+  }
+  async function toggleTextActive(id: string, isActive: boolean) {
+    await fetch(`/api/admin/recall-texts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive }),
+    });
+    loadRecallTexts();
+  }
+  async function deleteRecallText(id: string) {
+    if (!confirm('Delete this text?')) return;
+    await fetch(`/api/admin/recall-texts/${id}`, { method: 'DELETE' });
+    loadRecallTexts();
+  }
+
   async function toggleGame(game: string, muted: boolean) {
     setGameToggling(prev => ({ ...prev, [game]: true }));
     await fetch('/api/admin/games', {
@@ -371,41 +408,151 @@ export default function AdminPage() {
         )}
 
         {tab === 'games' && (
-          <div className="space-y-3">
-            {[
-              { key: 'mines', label: 'Mines', icon: '💎', desc: 'Minesweeper · Bet-based' },
-              { key: 'memory', label: 'Memory', icon: '🃏', desc: 'Card Match · Skill-based' },
-            ].map(g => {
-              const isMuted = gameMuted[g.key];
-              const toggling = gameToggling[g.key];
-              return (
-                <div key={g.key} className="bg-[#111111] rounded-2xl p-5 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{g.icon}</span>
-                    <div>
-                      <p className="text-white font-bold text-sm">{g.label}</p>
-                      <p className="text-white/30 text-xs">{g.desc}</p>
+          <div className="space-y-6">
+            {/* Mute toggles */}
+            <div className="space-y-3">
+              <p className="text-white/40 text-xs uppercase tracking-wider">Game Availability</p>
+              {[
+                { key: 'mines',  label: 'Mines',       icon: '💎', desc: 'Minesweeper · Bet-based' },
+                { key: 'memory', label: 'Memory',      icon: '🃏', desc: 'Card Match · Skill-based' },
+                { key: 'recall', label: 'Text Recall', icon: '🧠', desc: 'Read & recall · Text-based' },
+              ].map(g => {
+                const isMuted = gameMuted[g.key];
+                const toggling = gameToggling[g.key];
+                return (
+                  <div key={g.key} className="bg-[#111111] rounded-2xl p-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{g.icon}</span>
+                      <div>
+                        <p className="text-white font-bold text-sm">{g.label}</p>
+                        <p className="text-white/30 text-xs">{g.desc}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs font-bold ${isMuted ? 'text-red-400' : 'text-green-400'}`}>
+                        {isMuted ? 'MUTED' : 'LIVE'}
+                      </span>
+                      <button
+                        onClick={() => toggleGame(g.key, !isMuted)}
+                        disabled={toggling}
+                        className={`font-bold text-xs px-5 py-2 rounded-full transition-colors disabled:opacity-40 ${
+                          isMuted ? 'bg-green-500 text-black hover:bg-green-400' : 'bg-red-500/80 text-white hover:bg-red-500'
+                        }`}
+                      >
+                        {toggling ? '...' : isMuted ? 'Unmute' : 'Mute'}
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs font-bold ${isMuted ? 'text-red-400' : 'text-green-400'}`}>
-                      {isMuted ? 'MUTED' : 'LIVE'}
-                    </span>
-                    <button
-                      onClick={() => toggleGame(g.key, !isMuted)}
-                      disabled={toggling}
-                      className={`font-bold text-xs px-5 py-2 rounded-full transition-colors disabled:opacity-40 ${
-                        isMuted
-                          ? 'bg-green-500 text-black hover:bg-green-400'
-                          : 'bg-red-500/80 text-white hover:bg-red-500'
-                      }`}
-                    >
-                      {toggling ? '...' : isMuted ? 'Unmute' : 'Mute'}
-                    </button>
+                );
+              })}
+            </div>
+
+            {/* Recall Texts management */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-white/40 text-xs uppercase tracking-wider">Recall Texts</p>
+                <button
+                  onClick={() => setShowAddRecall(v => !v)}
+                  className="text-xs font-bold bg-white text-black px-4 py-1.5 rounded-full hover:bg-gray-100"
+                >
+                  {showAddRecall ? 'Cancel' : '+ Add Text'}
+                </button>
+              </div>
+
+              {showAddRecall && (
+                <div className="bg-[#111111] rounded-2xl p-5 mb-3 space-y-4">
+                  <div>
+                    <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={newRecall.title}
+                      onChange={e => setNewRecall(p => ({ ...p, title: e.target.value }))}
+                      placeholder="e.g. The Amazon River"
+                      className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
+                    />
                   </div>
+                  <div>
+                    <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Text Content</label>
+                    <textarea
+                      value={newRecall.textContent}
+                      onChange={e => setNewRecall(p => ({ ...p, textContent: e.target.value }))}
+                      rows={5}
+                      placeholder="Write the passage users will read and recall..."
+                      className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20 resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Difficulty</label>
+                      <select
+                        value={newRecall.difficulty}
+                        onChange={e => setNewRecall(p => ({ ...p, difficulty: e.target.value }))}
+                        className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
+                      >
+                        {['Very Simple','Simple','Normal','Complex','Difficult'].map(d => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-end pb-1">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newRecall.disappearsAfterReading}
+                          onChange={e => setNewRecall(p => ({ ...p, disappearsAfterReading: e.target.checked }))}
+                          className="w-4 h-4 accent-yellow-400"
+                        />
+                        <span className="text-white/60 text-xs">Disappears after reading</span>
+                      </label>
+                    </div>
+                  </div>
+                  <button
+                    onClick={addRecallText}
+                    disabled={recallSaving || !newRecall.title.trim() || !newRecall.textContent.trim()}
+                    className="w-full bg-yellow-400 text-black font-bold text-sm py-3 rounded-full disabled:opacity-40 hover:bg-yellow-300 transition-colors"
+                  >
+                    {recallSaving ? 'Saving...' : 'Save Text'}
+                  </button>
                 </div>
-              );
-            })}
+              )}
+
+              {recallTexts.length === 0 ? (
+                <p className="text-white/20 text-sm text-center py-6">No recall texts yet — add one above</p>
+              ) : (
+                <div className="space-y-2">
+                  {recallTexts.map(t => (
+                    <div key={t.id} className="bg-[#111111] rounded-2xl p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <p className="text-white font-bold text-sm truncate">{t.title}</p>
+                            <span className="text-[10px] bg-white/10 text-white/60 px-2 py-0.5 rounded-full">{t.difficulty}</span>
+                            {t.disappears_after_reading && <span className="text-[10px] text-orange-400">vanishes</span>}
+                          </div>
+                          <p className="text-white/30 text-xs line-clamp-2">{t.text_content}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => toggleTextActive(t.id, !t.is_active)}
+                            className={`text-[10px] font-bold px-3 py-1.5 rounded-full transition-colors ${
+                              t.is_active ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-white/10 text-white/40 hover:bg-white/15'
+                            }`}
+                          >
+                            {t.is_active ? 'Active' : 'Inactive'}
+                          </button>
+                          <button
+                            onClick={() => deleteRecallText(t.id)}
+                            className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

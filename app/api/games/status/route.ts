@@ -6,13 +6,15 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     await initSchema();
-    const [minesMuted, memoryMuted] = await Promise.all([
+    const [minesMuted, memoryMuted, recallMuted] = await Promise.all([
       getSetting('game_muted_mines', 'false'),
       getSetting('game_muted_memory', 'false'),
+      getSetting('game_muted_recall', 'false'),
     ]);
     return NextResponse.json({
-      mines: { muted: minesMuted === 'true' },
+      mines:  { muted: minesMuted === 'true' },
       memory: { muted: memoryMuted === 'true' },
+      recall: { muted: recallMuted === 'true' },
     });
   } catch (err) {
     console.error('[games/status]', err);

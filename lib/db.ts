@@ -131,6 +131,30 @@ export async function initSchema(): Promise<void> {
     await sql`INSERT INTO app_settings (key, value) VALUES ('leaderboard_min_earnings', '0') ON CONFLICT (key) DO NOTHING`;
     await sql`INSERT INTO app_settings (key, value) VALUES ('game_muted_mines', 'false') ON CONFLICT (key) DO NOTHING`;
     await sql`INSERT INTO app_settings (key, value) VALUES ('game_muted_memory', 'false') ON CONFLICT (key) DO NOTHING`;
+    await sql`INSERT INTO app_settings (key, value) VALUES ('game_muted_recall', 'false') ON CONFLICT (key) DO NOTHING`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS recall_texts (
+        id                      UUID        PRIMARY KEY,
+        title                   TEXT        NOT NULL,
+        text_content            TEXT        NOT NULL,
+        difficulty              TEXT        NOT NULL DEFAULT 'Normal',
+        disappears_after_reading BOOLEAN    NOT NULL DEFAULT false,
+        is_active               BOOLEAN     NOT NULL DEFAULT true,
+        created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS recall_games (
+        id         UUID        PRIMARY KEY,
+        user_id    UUID        NOT NULL REFERENCES users(id),
+        text_id    UUID        NOT NULL REFERENCES recall_texts(id),
+        bet        INTEGER     NOT NULL,
+        questions  JSONB       NOT NULL,
+        status     TEXT        NOT NULL DEFAULT 'active',
+        payout     INTEGER     NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
 
     schemaInitialized = true;
   } catch (err) {

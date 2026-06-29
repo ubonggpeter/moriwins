@@ -27,6 +27,17 @@ const GAMES = [
     tagColor: 'text-blue-400',
     rtp: 'Up to 2.5x',
   },
+  {
+    key: 'recall' as const,
+    title: 'Text Recall',
+    subtitle: 'Read & Remember · Text-based',
+    desc: 'Read a text passage then answer questions from memory.',
+    icon: '🧠',
+    href: '/games/recall',
+    tag: 'MEMORY',
+    tagColor: 'text-purple-400',
+    rtp: 'Up to 5x',
+  },
 ];
 
 export default function GamesPage() {
@@ -36,7 +47,7 @@ export default function GamesPage() {
   useEffect(() => {
     fetch('/api/games/status')
       .then(r => r.json())
-      .then(d => setMuted({ mines: !!d.mines?.muted, memory: !!d.memory?.muted }))
+      .then(d => setMuted({ mines: !!d.mines?.muted, memory: !!d.memory?.muted, recall: !!d.recall?.muted }))
       .catch(() => {});
   }, []);
 

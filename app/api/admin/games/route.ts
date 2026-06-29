@@ -18,7 +18,7 @@ export async function PATCH(request: Request) {
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { game, muted } = await request.json();
-  if (!['mines', 'memory'].includes(game) || typeof muted !== 'boolean') {
+  if (!['mines', 'memory', 'recall'].includes(game) || typeof muted !== 'boolean') {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
 

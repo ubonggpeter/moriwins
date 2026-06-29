@@ -21,6 +21,7 @@ interface ReferralStats {
 
 const GAMES = [
   {
+    key: 'mines',
     title: 'Mines',
     desc: 'Reveal cells and avoid mines',
     icon: '💎',
@@ -29,12 +30,22 @@ const GAMES = [
     tagColor: 'text-red-400',
   },
   {
+    key: 'memory',
     title: 'Memory',
     desc: 'Match all pairs to win',
     icon: '🃏',
     href: '/games/memory',
     tag: 'SKILL',
     tagColor: 'text-blue-400',
+  },
+  {
+    key: 'recall',
+    title: 'Text Recall',
+    desc: 'Read a passage and answer from memory',
+    icon: '🧠',
+    href: '/games/recall',
+    tag: 'MEMORY',
+    tagColor: 'text-purple-400',
   },
 ];
 
@@ -55,7 +66,7 @@ export default function DashboardPage() {
       .catch(() => {});
     fetch('/api/games/status')
       .then(r => r.json())
-      .then(d => setMutedGames({ mines: !!d.mines?.muted, memory: !!d.memory?.muted }))
+      .then(d => setMutedGames({ mines: !!d.mines?.muted, memory: !!d.memory?.muted, recall: !!d.recall?.muted }))
       .catch(() => {});
   }, []);
 
@@ -183,7 +194,7 @@ export default function DashboardPage() {
               {[
                 { label: 'Balance', value: `$${user?.balance.toLocaleString() ?? 0}`, color: 'text-yellow-400' },
                 { label: 'Status', value: 'Active', color: 'text-green-400' },
-                { label: 'Games', value: '2', color: 'text-white' },
+                { label: 'Games', value: '3', color: 'text-white' },
               ].map(s => (
                 <div key={s.label} className="bg-[#111111] rounded-2xl p-3 md:p-4 text-center overflow-hidden">
                   <p className={`text-sm md:text-base font-bold truncate ${s.color}`}>{s.value}</p>
@@ -195,7 +206,7 @@ export default function DashboardPage() {
             {/* Game cards */}
             <p className="text-white/30 text-xs tracking-widest uppercase mb-3">Play Now</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-              {GAMES.filter(g => !mutedGames[g.title.toLowerCase()]).map(g => (
+              {GAMES.filter(g => !mutedGames[g.key]).map(g => (
                 <Link key={g.title} href={g.href} className="bg-[#111111] rounded-2xl p-5 flex items-center gap-4 group">
                   <span className="text-3xl">{g.icon}</span>
                   <div className="flex-1 min-w-0">
