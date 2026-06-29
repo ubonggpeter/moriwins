@@ -176,8 +176,8 @@ export default function DashboardPage() {
             { label: 'Status', value: 'Active', color: 'text-green-400' },
             { label: 'Games', value: '2', color: 'text-white' },
           ].map(s => (
-            <div key={s.label} className="bg-[#111111] rounded-2xl p-4 text-center">
-              <p className={`text-base font-bold font-mono ${s.color}`}>{s.value}</p>
+            <div key={s.label} className="bg-[#111111] rounded-2xl p-3 text-center overflow-hidden">
+              <p className={`text-sm font-bold truncate ${s.color}`}>{s.value}</p>
               <p className="text-white/30 text-[10px] tracking-wider mt-1 uppercase">{s.label}</p>
             </div>
           ))}

@@ -10,14 +10,14 @@ export async function GET() {
     const gameEarners = await sql`
       SELECT username, avatar_url, total_game_winnings AS earnings
       FROM users
-      WHERE total_game_winnings >= ${min}
+      WHERE total_game_winnings > 0 AND total_game_winnings >= ${min}
       ORDER BY total_game_winnings DESC
       LIMIT 10
     `;
     const referralEarners = await sql`
       SELECT username, avatar_url, referral_earnings AS earnings
       FROM users
-      WHERE referral_earnings >= ${min} AND referral_earnings > 0
+      WHERE referral_earnings > 0 AND referral_earnings >= ${min}
       ORDER BY referral_earnings DESC
       LIMIT 10
     `;
