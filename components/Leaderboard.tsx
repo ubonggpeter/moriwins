@@ -62,7 +62,7 @@ export default function Leaderboard() {
               <span className="text-base w-6 text-center">{rankBadge(i)}</span>
               <div className="w-8 h-8 rounded-full bg-[#1c1c1c] flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden">
                 {entry.avatarUrl
-                  ? <img src={entry.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  ? <img src={entry.avatarUrl} alt="" className="w-full h-full object-cover" /> /* eslint-disable-line @next/next/no-img-element */
                   : entry.username[0]?.toUpperCase()}
               </div>
               <span className="flex-1 text-white text-sm font-medium truncate">{entry.username}</span>

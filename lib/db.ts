@@ -128,11 +128,6 @@ export async function initSchema(): Promise<void> {
 
 // ── User helpers ────────────────────────────────────────────────────────────
 
-// porsager/postgres in prepare:false mode may return booleans as 't'/'f' strings
-function parseBool(v: unknown): boolean {
-  return v === true || v === 't' || v === 'true' || v === '1' || v === 1;
-}
-
 function rowToUser(r: Record<string, unknown>): User {
   return {
     id: r.id as string,

@@ -85,7 +85,7 @@ export default function DashboardPage() {
             )}
             <div className="w-10 h-10 rounded-full bg-[#1c1c1c] border border-white/10 overflow-hidden flex items-center justify-center">
               {user?.avatarUrl
-                ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" /> /* eslint-disable-line @next/next/no-img-element */
                 : <span className="text-white font-bold text-sm">{initial}</span>}
             </div>
           </div>

@@ -156,7 +156,7 @@ export default function ProfilePage() {
               title="Tap to change photo"
             >
               {avatarUrl
-                ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> /* eslint-disable-line @next/next/no-img-element */
                 : <span className="text-white font-black text-3xl">{initial}</span>}
               {/* Hover overlay */}
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
