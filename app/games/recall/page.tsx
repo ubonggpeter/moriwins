@@ -22,7 +22,7 @@ type Phase =
       difficulty: string;
       multiplier: number;
       tokens: RecallToken[];
-      answers?: string[];   // training only (for grading)
+      answers: string[];
       totalBlanks: number;
     }
   | {
@@ -31,10 +31,11 @@ type Phase =
       gameId?: string;
       title: string;
       tokens: RecallToken[];
-      answers?: string[];   // training only
+      answers: string[];
       totalBlanks: number;
       userAnswers: string[];
-      textGone: boolean;    // disappears_after_reading
+      blankStatuses: ('idle' | 'correct' | 'wrong')[];
+      textGone: boolean;
       multiplier: number;
     }
   | { type: 'submitting' }
@@ -148,6 +149,7 @@ export default function RecallPage() {
       difficulty: data.difficulty,
       multiplier: data.multiplier,
       tokens: data.tokens,
+      answers: data.answers,
       totalBlanks: data.totalBlanks,
     });
   }
@@ -164,6 +166,7 @@ export default function RecallPage() {
       answers: phase.answers,
       totalBlanks: phase.totalBlanks,
       userAnswers: Array(phase.totalBlanks).fill(''),
+      blankStatuses: Array(phase.totalBlanks).fill('idle' as const),
       textGone: phase.disappears,
       multiplier: phase.multiplier,
     });
@@ -172,9 +175,17 @@ export default function RecallPage() {
   const updateAnswer = useCallback((blankIdx: number, value: string) => {
     setPhase(prev => {
       if (prev.type !== 'filling') return prev;
+      if (prev.blankStatuses[blankIdx] !== 'idle') return prev;
       const ua = [...prev.userAnswers];
+      const statuses = [...prev.blankStatuses];
       ua[blankIdx] = value;
-      return { ...prev, userAnswers: ua };
+      const correct = prev.answers[blankIdx] ?? '';
+      if (value.toLowerCase() === correct.toLowerCase()) {
+        statuses[blankIdx] = 'correct';
+      } else if (value.length > correct.length) {
+        statuses[blankIdx] = 'wrong';
+      }
+      return { ...prev, userAnswers: ua, blankStatuses: statuses };
     });
   }, []);
 
@@ -185,11 +196,13 @@ export default function RecallPage() {
 
   async function submitAnswers() {
     if (phase.type !== 'filling') return;
-    const { mode, gameId, userAnswers, answers, totalBlanks } = phase;
+    const { mode, gameId, userAnswers, answers, totalBlanks, blankStatuses } = phase;
 
     if (mode === 'training') {
-      // Grade locally using full answers (training mode has answers client-side)
-      const grades = (answers ?? []).map((correct, i) => {
+      const grades = answers.map((correct, i) => {
+        const status = blankStatuses[i];
+        if (status === 'correct') return 1 as number;
+        if (status === 'wrong') return 0 as number;
         const user = (userAnswers[i] ?? '').trim().toLowerCase().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
         return (user === correct.toLowerCase() ? 1 : 0) as number;
       });
@@ -198,7 +211,7 @@ export default function RecallPage() {
         type: 'result', mode: 'training',
         won: correctCount === totalBlanks,
         correctCount, totalBlanks,
-        correctAnswers: answers ?? [],
+        correctAnswers: answers,
         userAnswers, grades,
       });
     } else {
@@ -506,7 +519,7 @@ export default function RecallPage() {
 
         {/* ── FILLING ── */}
         {phase.type === 'filling' && (() => {
-          const { tokens, userAnswers, totalBlanks, textGone, title, mode, multiplier } = phase;
+          const { tokens, userAnswers, totalBlanks, textGone, title, mode, multiplier, blankStatuses, answers } = phase;
           const filledCount = userAnswers.filter(a => a.trim() !== '').length;
 
           return (
@@ -543,46 +556,86 @@ export default function RecallPage() {
                       return <span key={i}>{tok.value}</span>;
                     }
                     if (tok.blank) {
+                      const status = blankStatuses[tok.blankIndex];
+                      const correct = answers[tok.blankIndex] ?? '';
+                      const isLocked = status === 'correct' || status === 'wrong';
                       const width = Math.max(4, tok.charCount + 2);
                       return (
-                        <input
+                        <span
                           key={i}
-                          ref={el => { inputRefs.current[tok.blankIndex] = el; }}
-                          type="text"
-                          value={userAnswers[tok.blankIndex] ?? ''}
-                          onChange={e => updateAnswer(tok.blankIndex, e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); focusNext(tok.blankIndex); } }}
-                          className="inline-block align-baseline border-b-2 border-white/40 bg-transparent text-yellow-400 text-center font-mono text-sm focus:outline-none focus:border-yellow-400 mx-0.5 px-0.5 transition-colors"
-                          style={{ width: `${width}ch` }}
-                          autoComplete="off"
-                          spellCheck={false}
-                        />
+                          className="inline-flex flex-col items-center mx-0.5"
+                          style={{ verticalAlign: 'bottom' }}
+                        >
+                          <span className={`text-[10px] font-bold leading-none mb-0.5 ${status === 'wrong' ? 'text-green-400' : 'invisible'}`}>
+                            {correct}
+                          </span>
+                          <input
+                            ref={el => { inputRefs.current[tok.blankIndex] = el; }}
+                            type="text"
+                            value={userAnswers[tok.blankIndex] ?? ''}
+                            onChange={e => !isLocked && updateAnswer(tok.blankIndex, e.target.value)}
+                            onKeyDown={e => {
+                              if ((e.key === 'Enter' || e.key === 'Tab') && !isLocked) {
+                                e.preventDefault();
+                                focusNext(tok.blankIndex);
+                              }
+                            }}
+                            readOnly={isLocked}
+                            className={`border-b-2 bg-transparent text-center font-mono text-sm focus:outline-none transition-colors px-0.5 ${
+                              status === 'correct' ? 'border-green-500 bg-green-500/10 text-green-400' :
+                              status === 'wrong'   ? 'border-red-500 bg-red-500/10 text-red-400' :
+                              'border-white/40 text-yellow-400 focus:border-yellow-400'
+                            }`}
+                            style={{ width: `${width}ch` }}
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </span>
                       );
                     }
                     if (textGone) {
-                      // hide non-blank words but keep spaces for layout
                       return null;
                     }
                     return <span key={i}>{tok.value}</span>;
                   })}
                   {textGone && (
                     <div className="space-y-3 mt-2">
-                      {Array(totalBlanks).fill(null).map((_, blankIdx) => (
-                        <div key={blankIdx} className="flex items-center gap-3">
-                          <span className="text-white/25 text-xs w-6 text-right">{blankIdx + 1}.</span>
-                          <input
-                            ref={el => { inputRefs.current[blankIdx] = el; }}
-                            type="text"
-                            value={userAnswers[blankIdx] ?? ''}
-                            onChange={e => updateAnswer(blankIdx, e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); focusNext(blankIdx); } }}
-                            placeholder={`Word ${blankIdx + 1}`}
-                            className="flex-1 bg-[#1a1a1a] border border-white/[0.08] rounded-lg px-3 py-2 text-yellow-400 font-mono text-sm focus:outline-none focus:border-yellow-400 placeholder:text-white/15 transition-colors"
-                            autoComplete="off"
-                            spellCheck={false}
-                          />
-                        </div>
-                      ))}
+                      {Array(totalBlanks).fill(null).map((_, blankIdx) => {
+                        const status = blankStatuses[blankIdx];
+                        const correct = answers[blankIdx] ?? '';
+                        const isLocked = status === 'correct' || status === 'wrong';
+                        return (
+                          <div key={blankIdx} className="flex items-start gap-3">
+                            <span className="text-white/25 text-xs w-6 text-right mt-2.5 shrink-0">{blankIdx + 1}.</span>
+                            <div className="flex-1">
+                              {status === 'wrong' && (
+                                <span className="block text-green-400 text-[10px] font-bold mb-0.5">→ {correct}</span>
+                              )}
+                              <input
+                                ref={el => { inputRefs.current[blankIdx] = el; }}
+                                type="text"
+                                value={userAnswers[blankIdx] ?? ''}
+                                onChange={e => !isLocked && updateAnswer(blankIdx, e.target.value)}
+                                onKeyDown={e => {
+                                  if ((e.key === 'Enter' || e.key === 'Tab') && !isLocked) {
+                                    e.preventDefault();
+                                    focusNext(blankIdx);
+                                  }
+                                }}
+                                readOnly={isLocked}
+                                placeholder={isLocked ? undefined : `Word ${blankIdx + 1}`}
+                                className={`w-full border rounded-lg px-3 py-2 font-mono text-sm focus:outline-none placeholder:text-white/15 transition-colors ${
+                                  status === 'correct' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
+                                  status === 'wrong'   ? 'bg-red-500/10 border-red-500/30 text-red-400' :
+                                  'bg-[#1a1a1a] border-white/[0.08] text-yellow-400 focus:border-yellow-400'
+                                }`}
+                                autoComplete="off"
+                                spellCheck={false}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

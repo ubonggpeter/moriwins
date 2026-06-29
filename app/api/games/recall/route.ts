@@ -94,6 +94,7 @@ export async function POST(request: Request) {
     difficulty,
     multiplier: DIFFICULTY_CONFIG[difficulty].multiplier,
     tokens: clientTokens,
+    answers: result.answers,
     totalBlanks: result.totalBlanks,
   });
 }
