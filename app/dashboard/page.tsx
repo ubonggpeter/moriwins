@@ -124,10 +124,16 @@ export default function DashboardPage() {
               <span className="bg-green-500/15 text-green-400 text-xs font-black px-3 py-1 rounded-full">+$50</span>
             </div>
 
-            {/* Link display */}
-            <div className="bg-[#1a1a1a] rounded-xl p-4 mb-4">
-              <p className="text-white/30 text-[10px] uppercase tracking-wider mb-1">Your referral link</p>
-              <p className="text-white text-xs font-mono break-all leading-relaxed">{referral.referralLink}</p>
+            {/* Code + link display */}
+            <div className="flex gap-3 mb-4">
+              <div className="bg-[#1a1a1a] rounded-xl p-4 shrink-0">
+                <p className="text-white/30 text-[10px] uppercase tracking-wider mb-1">Your code</p>
+                <p className="text-yellow-400 text-sm font-mono font-black tracking-widest">{referral.referralCode}</p>
+              </div>
+              <div className="bg-[#1a1a1a] rounded-xl p-4 flex-1 min-w-0">
+                <p className="text-white/30 text-[10px] uppercase tracking-wider mb-1">Your referral link</p>
+                <p className="text-white text-xs font-mono break-all leading-relaxed">{referral.referralLink}</p>
+              </div>
             </div>
 
             <button

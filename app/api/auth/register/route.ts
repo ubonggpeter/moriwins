@@ -5,7 +5,10 @@ import { getUserByEmail, getUserByUsername, getUserByReferralCode, createUser, s
 import { signToken } from '@/lib/auth';
 
 function generateReferralCode(): string {
-  return Math.random().toString(36).substring(2, 10).toUpperCase();
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
 }
 
 export async function POST(request: Request) {
@@ -44,9 +47,9 @@ export async function POST(request: Request) {
       avatarUrl: null,
     });
 
-    // Handle referral bonus — ref param is the referrer's username
+    // Handle referral bonus — ref param is the referrer's unique referral code
     if (incomingRef) {
-      const referrer = await getUserByUsername(String(incomingRef)) ?? await getUserByReferralCode(String(incomingRef));
+      const referrer = await getUserByReferralCode(String(incomingRef).toUpperCase());
       if (referrer && referrer.id !== userId) {
         await sql`UPDATE users SET balance = balance + 50, referral_earnings = referral_earnings + 50 WHERE id = ${referrer.id}`;
         await sql`INSERT INTO referrals (id, referrer_id, referred_id, bonus_paid) VALUES (${uuidv4()}, ${referrer.id}, ${userId}, 50)`;

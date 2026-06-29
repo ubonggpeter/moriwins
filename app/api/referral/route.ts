@@ -21,8 +21,8 @@ export async function GET() {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://moriwins.vercel.app';
 
   return NextResponse.json({
-    referralCode: user.username,
-    referralLink: `${baseUrl}/auth/register?ref=${encodeURIComponent(user.username)}`,
+    referralCode: user.referralCode,
+    referralLink: `${baseUrl}/auth/register?ref=${encodeURIComponent(user.referralCode)}`,
     totalReferrals,
     referralEarnings: user.referralEarnings,
   });

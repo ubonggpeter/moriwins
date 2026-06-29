@@ -66,7 +66,7 @@ function RegisterForm() {
           <div className="bg-green-500/10 border border-green-500/20 rounded-2xl px-4 py-3 mb-4 flex items-center gap-3">
             <span className="text-2xl">🤝</span>
             <div>
-              <p className="text-green-400 text-sm font-bold">Referred by {refBy}</p>
+              <p className="text-green-400 text-sm font-bold">You were referred by a friend</p>
               <p className="text-white/40 text-xs mt-0.5">They&apos;ll earn $50 when you join</p>
             </div>
           </div>

@@ -73,6 +73,17 @@ export async function initSchema(): Promise<void> {
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE`; } catch {}
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT`; } catch {}
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by UUID`; } catch {}
+    // Backfill any users missing a 6-char code (old codes were 8-char base36 or username-based)
+    try {
+      await sql`
+        UPDATE users
+        SET referral_code = UPPER(ENCODE(GEN_RANDOM_BYTES(3), 'hex'))
+        WHERE referral_code IS NULL OR LENGTH(referral_code) != 6
+      `;
+    } catch {}
+    try {
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_referral_code_unique ON users(referral_code) WHERE referral_code IS NOT NULL`;
+    } catch {}
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earnings INTEGER NOT NULL DEFAULT 0`; } catch {}
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_game_winnings INTEGER NOT NULL DEFAULT 0`; } catch {}
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`; } catch {}
