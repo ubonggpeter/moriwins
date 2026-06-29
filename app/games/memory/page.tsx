@@ -4,13 +4,38 @@ import { useRouter } from 'next/navigation';
 import { Gem, Star, Moon, Skull, Globe, Zap, Heart, Crown, Layers, type LucideIcon } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 
-type IconKey = 'gem' | 'star' | 'moon' | 'skull' | 'globe' | 'zap' | 'heart' | 'crown';
-const ICON_MAP: Record<IconKey, LucideIcon> = { gem: Gem, star: Star, moon: Moon, skull: Skull, globe: Globe, zap: Zap, heart: Heart, crown: Crown };
-const ICON_KEYS: IconKey[] = ['gem', 'star', 'moon', 'skull', 'globe', 'zap', 'heart', 'crown'];
-function CardIcon({ name }: { name: string }) {
-  const Icon = ICON_MAP[name as IconKey];
-  return Icon ? <Icon size={22} className="text-white/80" /> : null;
+interface IconConfig {
+  key: string;
+  Icon: LucideIcon;
+  color: string;
+  glow: string;
+  gradFrom: string;
+  gradTo: string;
+  border: string;
 }
+
+const ICON_CONFIGS: IconConfig[] = [
+  { key: 'star',  Icon: Star,  color: '#facc15', glow: 'rgba(250,204,21,0.45)',  gradFrom: '#1a1100', gradTo: '#0d0800', border: '#6b5600' },
+  { key: 'heart', Icon: Heart, color: '#f43f5e', glow: 'rgba(244,63,94,0.45)',   gradFrom: '#1a0008', gradTo: '#0d0004', border: '#7f1d29' },
+  { key: 'zap',   Icon: Zap,   color: '#60a5fa', glow: 'rgba(96,165,250,0.45)',  gradFrom: '#00091a', gradTo: '#00040d', border: '#1e3a5f' },
+  { key: 'crown', Icon: Crown, color: '#c084fc', glow: 'rgba(192,132,252,0.45)', gradFrom: '#0d001a', gradTo: '#08000d', border: '#4c1d95' },
+  { key: 'gem',   Icon: Gem,   color: '#34d399', glow: 'rgba(52,211,153,0.45)',  gradFrom: '#001a0e', gradTo: '#000d07', border: '#065f46' },
+  { key: 'moon',  Icon: Moon,  color: '#a78bfa', glow: 'rgba(167,139,250,0.45)', gradFrom: '#0a001a', gradTo: '#05000d', border: '#3b1d7a' },
+  { key: 'globe', Icon: Globe, color: '#38bdf8', glow: 'rgba(56,189,248,0.45)',  gradFrom: '#00141a', gradTo: '#000a0d', border: '#0c4a6e' },
+  { key: 'skull', Icon: Skull, color: '#fb923c', glow: 'rgba(251,146,60,0.45)',  gradFrom: '#1a0800', gradTo: '#0d0400', border: '#7c2d12' },
+];
+
+const ROUNDS_PAIRS = [8, 7, 6, 5, 4, 3, 2];
+const TOTAL_ROUNDS = 7;
+
+const MULT_TABLE = [
+  { label: '0 wrong', mult: '3.0x', color: 'text-green-400' },
+  { label: '1–3 wrong', mult: '2.5x', color: 'text-green-400' },
+  { label: '4–7 wrong', mult: '2.0x', color: 'text-yellow-400' },
+  { label: '8–11 wrong', mult: '1.5x', color: 'text-yellow-400' },
+  { label: '12–14 wrong', mult: '1.2x', color: 'text-orange-400' },
+  { label: '15+ wrong', mult: 'Loss', color: 'text-red-400' },
+];
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -21,15 +46,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-type GamePhase = 'idle' | 'preview' | 'playing' | 'won' | 'lost';
-
-const MULT_TABLE = [
-  { label: '0 wrong', mult: '2.5x', color: 'text-green-400' },
-  { label: '1–2 wrong', mult: '2.0x', color: 'text-green-400' },
-  { label: '3–5 wrong', mult: '1.5x', color: 'text-yellow-400' },
-  { label: '6–8 wrong', mult: '1.2x', color: 'text-yellow-400' },
-  { label: '9+ wrong', mult: 'Loss', color: 'text-red-400' },
-];
+type GamePhase = 'idle' | 'preview' | 'playing' | 'round-complete' | 'won' | 'lost';
 
 export default function MemoryPage() {
   const router = useRouter();
@@ -42,12 +59,13 @@ export default function MemoryPage() {
   const [matched, setMatched] = useState<boolean[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [wrongGuesses, setWrongGuesses] = useState(0);
+  const [totalWrong, setTotalWrong] = useState(0);
+  const [round, setRound] = useState(1);
   const [countdown, setCountdown] = useState(3);
   const [result, setResult] = useState<{ won: boolean; payout: number; multiplier: number } | null>(null);
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Refs to avoid stale closure in async handlers
   const lockRef = useRef(false);
   const stateRef = useRef({
     cards: [] as string[],
@@ -55,17 +73,20 @@ export default function MemoryPage() {
     matched: [] as boolean[],
     selected: [] as number[],
     wrongGuesses: 0,
+    totalWrong: 0,
+    round: 1,
     gameId: '',
     bet: 50,
     phase: 'idle' as GamePhase,
   });
 
-  // Keep ref in sync
   useEffect(() => { stateRef.current.cards = cards; }, [cards]);
   useEffect(() => { stateRef.current.flipped = flipped; }, [flipped]);
   useEffect(() => { stateRef.current.matched = matched; }, [matched]);
   useEffect(() => { stateRef.current.selected = selected; }, [selected]);
   useEffect(() => { stateRef.current.wrongGuesses = wrongGuesses; }, [wrongGuesses]);
+  useEffect(() => { stateRef.current.totalWrong = totalWrong; }, [totalWrong]);
+  useEffect(() => { stateRef.current.round = round; }, [round]);
   useEffect(() => { stateRef.current.gameId = gameId; }, [gameId]);
   useEffect(() => { stateRef.current.bet = bet; }, [bet]);
   useEffect(() => { stateRef.current.phase = phase; }, [phase]);
@@ -75,6 +96,47 @@ export default function MemoryPage() {
       if (d.balance !== undefined) setBalance(d.balance);
     });
   }, []);
+
+  function startRound(roundNum: number) {
+    const pairs = ROUNDS_PAIRS[roundNum - 1];
+    const icons = ICON_CONFIGS.slice(0, pairs).map(c => c.key);
+    const shuffledCards = shuffle([...icons, ...icons]);
+    const cardCount = pairs * 2;
+    const allFlipped = Array(cardCount).fill(true) as boolean[];
+    const noneMatched = Array(cardCount).fill(false) as boolean[];
+
+    stateRef.current.cards = shuffledCards;
+    stateRef.current.flipped = [...allFlipped];
+    stateRef.current.matched = [...noneMatched];
+    stateRef.current.selected = [];
+    stateRef.current.wrongGuesses = 0;
+    stateRef.current.round = roundNum;
+    stateRef.current.phase = 'preview';
+
+    setRound(roundNum);
+    setCards(shuffledCards);
+    setFlipped([...allFlipped]);
+    setMatched([...noneMatched]);
+    setSelected([]);
+    setWrongGuesses(0);
+    setPhase('preview');
+    lockRef.current = false;
+
+    let c = 3;
+    setCountdown(c);
+    const tick = setInterval(() => {
+      c--;
+      setCountdown(c);
+      if (c <= 0) {
+        clearInterval(tick);
+        const hidden = Array(cardCount).fill(false) as boolean[];
+        setFlipped(hidden);
+        stateRef.current.flipped = hidden;
+        setPhase('playing');
+        stateRef.current.phase = 'playing';
+      }
+    }, 1000);
+  }
 
   async function startGame() {
     if (loading) return;
@@ -96,34 +158,17 @@ export default function MemoryPage() {
 
     setBalance(data.balance);
     setGameId(data.gameId);
-
-    const shuffled = shuffle([...ICON_KEYS, ...ICON_KEYS]);
-    const initialFlipped = Array(16).fill(true);
-    setCards(shuffled);
-    setFlipped(initialFlipped);
-    setMatched(Array(16).fill(false));
-    setSelected([]);
-    setWrongGuesses(0);
+    stateRef.current.gameId = data.gameId;
+    setTotalWrong(0);
+    stateRef.current.totalWrong = 0;
     setResult(null);
-    setPhase('preview');
-    lockRef.current = false;
     setLoading(false);
-
-    let c = 3;
-    setCountdown(c);
-    const tick = setInterval(() => {
-      c--;
-      setCountdown(c);
-      if (c <= 0) {
-        clearInterval(tick);
-        setFlipped(Array(16).fill(false));
-        setPhase('playing');
-      }
-    }, 1000);
+    startRound(1);
   }
 
   async function completeGame(won: boolean, wrongs: number, gid: string) {
     setPhase(won ? 'won' : 'lost');
+    stateRef.current.phase = won ? 'won' : 'lost';
     const res = await fetch('/api/games/memory', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -166,13 +211,27 @@ export default function MemoryPage() {
       lockRef.current = false;
 
       const totalMatched = newMatched.filter(Boolean).length;
-      if (totalMatched === 16) {
-        await completeGame(true, s.wrongGuesses, s.gameId);
+      const pairsForRound = ROUNDS_PAIRS[s.round - 1];
+      const cardCountForRound = pairsForRound * 2;
+
+      if (totalMatched === cardCountForRound) {
+        if (s.round >= TOTAL_ROUNDS) {
+          await completeGame(true, s.totalWrong, s.gameId);
+        } else {
+          setPhase('round-complete');
+          stateRef.current.phase = 'round-complete';
+          const nextRound = s.round + 1;
+          setTimeout(() => { startRound(nextRound); }, 1800);
+        }
       }
     } else {
       const newWrong = s.wrongGuesses + 1;
       setWrongGuesses(newWrong);
       stateRef.current.wrongGuesses = newWrong;
+
+      const newTotalWrong = s.totalWrong + 1;
+      setTotalWrong(newTotalWrong);
+      stateRef.current.totalWrong = newTotalWrong;
 
       const resetFlipped = [...newFlipped];
       resetFlipped[a] = false;
@@ -183,8 +242,8 @@ export default function MemoryPage() {
       stateRef.current.selected = [];
       lockRef.current = false;
 
-      if (newWrong >= 12) {
-        await completeGame(false, newWrong, s.gameId);
+      if (newTotalWrong >= 15) {
+        await completeGame(false, newTotalWrong, s.gameId);
       }
     }
   }
@@ -198,8 +257,14 @@ export default function MemoryPage() {
     setResult(null);
     setMsg('');
     setWrongGuesses(0);
+    setTotalWrong(0);
+    setRound(1);
     lockRef.current = false;
   }
+
+  const currentPairs = ROUNDS_PAIRS[round - 1] ?? 8;
+  const gridCols = cards.length <= 4 ? 'grid-cols-2' : cards.length <= 6 ? 'grid-cols-3' : 'grid-cols-4';
+  const iconSize = currentPairs <= 2 ? 32 : currentPairs <= 4 ? 28 : currentPairs <= 6 ? 24 : 20;
 
   return (
     <div className="min-h-screen bg-black pb-24 md:pb-10 md:pt-14">
@@ -220,7 +285,7 @@ export default function MemoryPage() {
               <Layers size={20} className="text-white/70" />
               <h1 className="text-white font-bold text-lg">Memory</h1>
             </div>
-            <p className="text-white/30 text-xs">Memorize · Match · Win</p>
+            <p className="text-white/30 text-xs">7 Rounds · Match All · Win</p>
           </div>
           <div className="text-right">
             <p className="text-white/30 text-[10px]">Balance</p>
@@ -232,9 +297,7 @@ export default function MemoryPage() {
         {phase === 'idle' && (
           <div className="bg-[#111111] rounded-2xl p-5 mb-4 space-y-5">
             <div>
-              <label className="text-xs text-white/40 tracking-wider uppercase block mb-3">
-                Bet Amount
-              </label>
+              <label className="text-xs text-white/40 tracking-wider uppercase block mb-3">Bet Amount</label>
               <div className="flex gap-2 flex-wrap">
                 {[10, 25, 50, 100, 250].map(v => (
                   <button
@@ -260,10 +323,9 @@ export default function MemoryPage() {
               </div>
             </div>
 
-            {/* Payout table */}
             <div className="bg-[#1c1c1c] rounded-xl p-4">
-              <p className="text-white/30 text-xs tracking-wider mb-3 uppercase">Payout Table</p>
-              <div className="grid grid-cols-5 gap-1">
+              <p className="text-white/30 text-xs tracking-wider mb-3 uppercase">Payout Table — Complete all 7 rounds</p>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                 {MULT_TABLE.map(r => (
                   <div key={r.label} className="text-center">
                     <p className="text-white/30 text-[9px] leading-tight">{r.label}</p>
@@ -292,25 +354,40 @@ export default function MemoryPage() {
         {/* Preview countdown */}
         {phase === 'preview' && (
           <div className="bg-[#111111] rounded-2xl py-5 mb-4 text-center">
+            <p className="text-white/30 text-[10px] tracking-widest uppercase mb-1">Round {round} of {TOTAL_ROUNDS} · {currentPairs} pairs</p>
             <p className="text-white/50 text-sm tracking-widest uppercase">
-              Memorize the cards! Hiding in{' '}
+              Memorize! Hiding in{' '}
               <span className="text-white font-bold text-2xl font-mono">{countdown}</span>
             </p>
           </div>
         )}
 
+        {/* Round complete */}
+        {phase === 'round-complete' && (
+          <div className="bg-green-500/10 border border-green-500/20 rounded-2xl py-5 mb-4 text-center">
+            <p className="text-green-400 font-black text-xl">Round {round} Complete!</p>
+            <p className="text-white/40 text-sm mt-1">Get ready for Round {round + 1} of {TOTAL_ROUNDS}…</p>
+          </div>
+        )}
+
         {/* Playing HUD */}
-        {phase === 'playing' && (
+        {(phase === 'playing' || phase === 'preview' || phase === 'round-complete') && (
           <div className="bg-[#111111] rounded-2xl px-5 py-4 mb-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/30 text-[10px] mb-0.5">Pairs Found</p>
-                <p className="text-white font-mono font-bold">{matched.filter(Boolean).length / 2} / 8</p>
+                <p className="text-white/30 text-[10px] mb-0.5">Round</p>
+                <p className="text-white font-mono font-bold">{round} / {TOTAL_ROUNDS}</p>
               </div>
               <div className="text-center">
-                <p className="text-white/30 text-[10px] mb-0.5">Wrong Guesses</p>
-                <p className={`font-mono font-bold text-lg ${wrongGuesses >= 9 ? 'text-red-400' : wrongGuesses >= 6 ? 'text-yellow-400' : 'text-white'}`}>
-                  {wrongGuesses} / 11
+                <p className="text-white/30 text-[10px] mb-0.5">Pairs Found</p>
+                <p className="text-white font-mono font-bold">
+                  {matched.filter(Boolean).length / 2} / {currentPairs}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-white/30 text-[10px] mb-0.5">Total Wrong</p>
+                <p className={`font-mono font-bold text-lg ${totalWrong >= 12 ? 'text-red-400' : totalWrong >= 8 ? 'text-yellow-400' : 'text-white'}`}>
+                  {totalWrong} / 14
                 </p>
               </div>
               <div>
@@ -333,7 +410,9 @@ export default function MemoryPage() {
                 {result.won ? `WON $${result.payout}! (${result.multiplier}x)` : 'YOU LOST'}
               </p>
               <p className="text-white/40 text-xs mt-0.5">
-                {result.won ? `${wrongGuesses} wrong guesses` : 'Too many wrong guesses'}
+                {result.won
+                  ? `All 7 rounds clear · ${totalWrong} total wrong`
+                  : `${totalWrong} wrong guesses — too many`}
               </p>
             </div>
             <button
@@ -345,34 +424,72 @@ export default function MemoryPage() {
           </div>
         )}
 
-        {/* Card grid */}
+        {/* 3D Card grid */}
         {cards.length > 0 && (
-          <div className="grid grid-cols-4 gap-2">
-            {cards.map((icon, idx) => {
+          <div className={`grid ${gridCols} gap-2 sm:gap-3`}>
+            {cards.map((iconKey, idx) => {
               const isFlipped = flipped[idx];
               const isMatch = matched[idx];
+              const cfg = ICON_CONFIGS.find(c => c.key === iconKey)!;
+              const showFace = isFlipped || isMatch;
+              const clickable = phase === 'playing' && !isFlipped && !isMatch && !lockRef.current;
+
               return (
-                <button
+                <div
                   key={idx}
+                  className="aspect-square"
+                  style={{ perspective: '600px' }}
                   onClick={() => handleCardClick(idx)}
-                  disabled={isFlipped || isMatch || phase !== 'playing'}
-                  className={`aspect-square rounded-xl flex items-center justify-center transition-all duration-200 select-none ${
-                    isMatch
-                      ? 'bg-green-500/10 border border-green-500/25 cursor-default'
-                      : isFlipped
-                      ? 'bg-[#1c1c1c] border border-white/15 cursor-default'
-                      : phase === 'playing'
-                      ? 'bg-[#111111] border border-white/8 hover:bg-white/8 hover:border-white/20 cursor-pointer active:scale-95'
-                      : 'bg-[#111111] border border-white/5 cursor-default'
-                  }`}
                 >
-                  {(isFlipped || isMatch) ? <CardIcon name={icon} /> : null}
-                </button>
+                  <div
+                    style={{
+                      transformStyle: 'preserve-3d',
+                      transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                      transform: showFace ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                      position: 'relative',
+                      width: '100%',
+                      height: '100%',
+                    }}
+                  >
+                    {/* Front — hidden face */}
+                    <div
+                      className={`absolute inset-0 rounded-xl flex items-center justify-center transition-colors ${
+                        clickable
+                          ? 'bg-[#111111] border border-white/8 hover:border-white/20 hover:bg-white/5 cursor-pointer active:scale-95'
+                          : 'bg-[#111111] border border-white/5 cursor-default'
+                      }`}
+                      style={{ backfaceVisibility: 'hidden' }}
+                    >
+                      <div className="w-3 h-3 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                    </div>
+
+                    {/* Back — icon face */}
+                    <div
+                      className="absolute inset-0 rounded-xl flex items-center justify-center cursor-default"
+                      style={{
+                        backfaceVisibility: 'hidden',
+                        transform: 'rotateY(180deg)',
+                        background: `radial-gradient(circle at 35% 35%, ${cfg.gradFrom}, ${cfg.gradTo})`,
+                        border: `1px solid ${cfg.border}`,
+                        boxShadow: isMatch ? `0 0 18px ${cfg.glow}, inset 0 0 18px ${cfg.glow}` : 'none',
+                      }}
+                    >
+                      <cfg.Icon
+                        size={iconSize}
+                        style={{
+                          color: cfg.color,
+                          filter: `drop-shadow(0 0 8px ${cfg.glow})`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
               );
             })}
           </div>
         )}
 
+        {/* Placeholder grid when no cards */}
         {cards.length === 0 && (
           <div className="grid grid-cols-4 gap-2 opacity-20">
             {Array(16).fill(null).map((_, i) => (
@@ -385,10 +502,10 @@ export default function MemoryPage() {
         <div className="mt-5 bg-[#111111] rounded-2xl p-4">
           <p className="text-white/25 text-xs tracking-wider mb-2 uppercase">How to play</p>
           <ul className="text-white/30 text-xs space-y-1">
-            <li>• Cards are briefly shown for 3 seconds — memorize their positions!</li>
-            <li>• Tap two cards to reveal them. Matching pairs stay revealed.</li>
-            <li>• Win with fewer wrong guesses for a higher multiplier.</li>
-            <li>• 12 wrong guesses and you lose your bet.</li>
+            <li>• 7 rounds total: starts at 8 pairs, shrinks by 1 each round (ends at 2 pairs)</li>
+            <li>• Cards flash for 3 seconds — memorize positions before they hide!</li>
+            <li>• Match all pairs each round to advance. 15 total wrong = game over.</li>
+            <li>• Complete all 7 rounds to earn your payout.</li>
           </ul>
         </div>
 

@@ -16,6 +16,50 @@ interface ChunkData {
   totalBlanks: number;
 }
 
+interface CompletedChunkData {
+  userAnswers: string[];
+  blankStatuses: BlankStatus[];
+}
+
+function CompletedChunkCard({ chunk, completed, idx }: {
+  chunk: ChunkData;
+  completed: CompletedChunkData;
+  idx: number;
+}) {
+  return (
+    <div className="bg-[#0d0d0d] rounded-2xl p-5 opacity-75">
+      <p className="text-white/20 font-bold text-[10px] uppercase tracking-wider mb-3">
+        Chunk {idx + 1} — Completed
+      </p>
+      <div className="text-white/45 text-sm leading-[2.6rem]">
+        {chunk.tokens.map((tok, i) => {
+          if (tok.type === 'space') return <span key={i}>{tok.value}</span>;
+          if (tok.blank) {
+            const status = completed.blankStatuses[tok.blankIndex] ?? 'idle';
+            const correct = chunk.answers[tok.blankIndex] ?? '';
+            const userAns = completed.userAnswers[tok.blankIndex] ?? '';
+            return (
+              <span key={i} className="inline-flex flex-col items-center mx-0.5" style={{ verticalAlign: 'bottom' }}>
+                <span className={`text-[9px] font-bold leading-none mb-0.5 ${status === 'wrong' ? 'text-green-400/80' : 'invisible'}`}>
+                  {correct}
+                </span>
+                <span className={`inline-block border-b-2 text-center font-mono text-xs px-0.5 min-w-[3ch] ${
+                  status === 'correct' ? 'border-green-500/50 text-green-400/60' :
+                  status === 'wrong'   ? 'border-red-500/50 text-red-400/60' :
+                  'border-white/15 text-white/25'
+                }`}>
+                  {userAns || '—'}
+                </span>
+              </span>
+            );
+          }
+          return <span key={i}>{tok.value}</span>;
+        })}
+      </div>
+    </div>
+  );
+}
+
 type Phase =
   | { type: 'mode-select' }
   | { type: 'training-setup' }
@@ -32,6 +76,7 @@ type Phase =
       difficulty: string;
       multiplier: number;
       prevUserAnswers: string[][];
+      completedChunks: CompletedChunkData[];
     }
   | {
       type: 'filling';
@@ -46,6 +91,7 @@ type Phase =
       prevUserAnswers: string[][];
       userAnswers: string[];
       blankStatuses: BlankStatus[];
+      completedChunks: CompletedChunkData[];
     }
   | { type: 'submitting' }
   | {
@@ -129,6 +175,7 @@ export default function RecallPage() {
       difficulty: trainingDifficulty,
       multiplier: data.multiplier,
       prevUserAnswers: [],
+      completedChunks: [],
     });
   }
 
@@ -158,6 +205,7 @@ export default function RecallPage() {
       difficulty: data.difficulty,
       multiplier: data.multiplier,
       prevUserAnswers: [],
+      completedChunks: [],
     });
   }
 
@@ -185,6 +233,7 @@ export default function RecallPage() {
       difficulty: phase.difficulty,
       multiplier: phase.multiplier,
       prevUserAnswers: phase.prevUserAnswers,
+      completedChunks: phase.completedChunks,
       userAnswers: Array(chunk.totalBlanks).fill(''),
       blankStatuses: Array(chunk.totalBlanks).fill('idle' as BlankStatus),
     });
@@ -222,6 +271,7 @@ export default function RecallPage() {
     } else {
       // Advance to reading next chunk
       inputRefs.current = [];
+      const newCompleted = [...phase.completedChunks, { userAnswers: phase.userAnswers, blankStatuses: phase.blankStatuses }];
       setPhase({
         type: 'reading',
         mode: phase.mode,
@@ -233,6 +283,7 @@ export default function RecallPage() {
         difficulty: phase.difficulty,
         multiplier: phase.multiplier,
         prevUserAnswers: allPrevAnswers,
+        completedChunks: newCompleted,
       });
     }
   }
@@ -545,6 +596,18 @@ export default function RecallPage() {
               <ChunkBadge idx={phase.chunkIndex} total={phase.totalChunks} />
             </div>
 
+            {/* Completed chunks above */}
+            {phase.completedChunks.map((completed, cIdx) => (
+              <div key={cIdx}>
+                <CompletedChunkCard chunk={phase.chunks[cIdx]} completed={completed} idx={cIdx} />
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-white/[0.05]" />
+                  <span className="text-white/20 text-[10px] font-bold tracking-wider uppercase py-1">Chunk {cIdx + 2} of {phase.totalChunks}</span>
+                  <div className="flex-1 h-px bg-white/[0.05]" />
+                </div>
+              </div>
+            ))}
+
             <div className="bg-[#111111] rounded-2xl p-6">
               <p className="text-white font-bold text-sm mb-4">{phase.title}</p>
               <p className="text-white/80 text-sm leading-relaxed">
@@ -578,6 +641,18 @@ export default function RecallPage() {
 
           return (
             <div className="space-y-4">
+              {/* Completed chunks above active */}
+              {phase.completedChunks.map((completed, cIdx) => (
+                <div key={cIdx}>
+                  <CompletedChunkCard chunk={phase.chunks[cIdx]} completed={completed} idx={cIdx} />
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-white/[0.05]" />
+                    <span className="text-white/20 text-[10px] font-bold tracking-wider uppercase py-1">Chunk {cIdx + 2} of {phase.totalChunks}</span>
+                    <div className="flex-1 h-px bg-white/[0.05]" />
+                  </div>
+                </div>
+              ))}
+
               {/* Stats bar */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
