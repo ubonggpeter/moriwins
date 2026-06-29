@@ -1,13 +1,14 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CreditCard, Bitcoin, Building2, Wrench } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 
 const AMOUNTS = [50, 100, 250, 500, 1000];
 const METHODS = [
-  { id: 'card', label: 'Credit / Debit Card', icon: '💳' },
-  { id: 'crypto', label: 'Cryptocurrency', icon: '₿' },
-  { id: 'bank', label: 'Bank Transfer', icon: '🏦' },
+  { id: 'card', label: 'Credit / Debit Card', Icon: CreditCard },
+  { id: 'crypto', label: 'Cryptocurrency', Icon: Bitcoin },
+  { id: 'bank', label: 'Bank Transfer', Icon: Building2 },
 ];
 
 export default function DepositPage() {
@@ -90,7 +91,7 @@ export default function DepositPage() {
                         : 'bg-[#1c1c1c] border border-white/5 hover:border-white/15'
                     }`}
                   >
-                    <span className="text-xl">{m.icon}</span>
+                    <m.Icon size={18} className="text-white/50 shrink-0" />
                     <span className="text-sm text-white/80 flex-1">{m.label}</span>
                     {method === m.id && (
                       <span className="w-4 h-4 rounded-full bg-white flex items-center justify-center">
@@ -127,7 +128,7 @@ export default function DepositPage() {
           </form>
         ) : (
           <div className="bg-[#111111] rounded-2xl p-8 text-center space-y-4">
-            <div className="text-5xl mb-4">🔧</div>
+            <div className="flex justify-center mb-4"><Wrench size={40} className="text-white/30" /></div>
             <h2 className="text-xl font-black tracking-widest text-white">COMING SOON</h2>
             <p className="text-white/40 text-sm leading-relaxed">
               Payment processing is not yet connected. This is a demo platform —

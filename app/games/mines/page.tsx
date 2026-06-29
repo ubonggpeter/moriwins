@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Gem, X, AlertCircle } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 
 type CellState = 'hidden' | 'safe' | 'mine' | 'mine-all';
@@ -161,11 +162,11 @@ export default function MinesPage() {
     return `${base} bg-[#111111] border border-white/8 hover:bg-white/10 hover:border-white/20 cursor-pointer active:scale-95`;
   }
 
-  function cellContent(state: CellState): string {
-    if (state === 'safe')     return '💎';
-    if (state === 'mine')     return '💥';
-    if (state === 'mine-all') return '💣';
-    return '';
+  function CellIcon({ state }: { state: CellState }) {
+    if (state === 'safe')     return <Gem size={18} className="text-green-400" />;
+    if (state === 'mine')     return <X size={20} className="text-red-400" />;
+    if (state === 'mine-all') return <AlertCircle size={18} className="text-red-900/80" />;
+    return null;
   }
 
   const isActive = game?.status === 'active';
@@ -187,7 +188,7 @@ export default function MinesPage() {
           </button>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-xl">💎</span>
+              <Gem size={20} className="text-white/70" />
               <h1 className="text-white font-bold text-lg">Mines</h1>
             </div>
             <p className="text-white/30 text-xs">Reveal cells · Avoid mines · Cash out</p>
@@ -335,7 +336,7 @@ export default function MinesPage() {
                 className={cellStyle(state, idx)}
                 disabled={!isActive || state !== 'hidden' || loading}
               >
-                {cellContent(state)}
+                <CellIcon state={state} />
               </button>
             ))}
           </div>
@@ -352,8 +353,8 @@ export default function MinesPage() {
           <p className="text-white/25 text-xs tracking-wider mb-2 uppercase">How to play</p>
           <ul className="text-white/30 text-xs space-y-1">
             <li>• Set your bet and number of mines, then tap Play.</li>
-            <li>• Reveal cells — safe cells (💎) multiply your winnings.</li>
-            <li>• Hit a mine (💥) and you lose your bet.</li>
+            <li>• Reveal cells — safe cells multiply your winnings.</li>
+            <li>• Hit a mine and you lose your bet.</li>
             <li>• Cash out anytime to secure your winnings.</li>
           </ul>
         </div>

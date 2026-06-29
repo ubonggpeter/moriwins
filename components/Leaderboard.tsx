@@ -29,10 +29,10 @@ export default function Leaderboard() {
   const list = tab === 'games' ? gameEarners : referralEarners;
 
   const rankBadge = (i: number) => {
-    if (i === 0) return '🥇';
-    if (i === 1) return '🥈';
-    if (i === 2) return '🥉';
-    return `${i + 1}`;
+    if (i === 0) return <span className="font-black text-yellow-400 text-sm">1</span>;
+    if (i === 1) return <span className="font-black text-white/60 text-sm">2</span>;
+    if (i === 2) return <span className="font-black text-amber-600 text-sm">3</span>;
+    return <span className="text-white/30 text-xs">{i + 1}</span>;
   };
 
   return (

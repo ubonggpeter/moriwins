@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Gem, Layers, Brain } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import Leaderboard from '@/components/Leaderboard';
 
@@ -20,33 +21,9 @@ interface ReferralStats {
 }
 
 const GAMES = [
-  {
-    key: 'mines',
-    title: 'Mines',
-    desc: 'Reveal cells and avoid mines',
-    icon: '💎',
-    href: '/games/mines',
-    tag: 'HIGH RISK',
-    tagColor: 'text-red-400',
-  },
-  {
-    key: 'memory',
-    title: 'Memory',
-    desc: 'Match all pairs to win',
-    icon: '🃏',
-    href: '/games/memory',
-    tag: 'SKILL',
-    tagColor: 'text-blue-400',
-  },
-  {
-    key: 'recall',
-    title: 'Text Recall',
-    desc: 'Read a passage and answer from memory',
-    icon: '🧠',
-    href: '/games/recall',
-    tag: 'MEMORY',
-    tagColor: 'text-purple-400',
-  },
+  { key: 'mines',  title: 'Mines',       desc: 'Reveal cells and avoid mines',          Icon: Gem,    href: '/games/mines',  tag: 'HIGH RISK', tagColor: 'text-red-400' },
+  { key: 'memory', title: 'Memory',      desc: 'Match all pairs to win',                Icon: Layers, href: '/games/memory', tag: 'SKILL',     tagColor: 'text-blue-400' },
+  { key: 'recall', title: 'Text Recall', desc: 'Read a passage, fill in missing words', Icon: Brain,  href: '/games/recall', tag: 'MEMORY',    tagColor: 'text-purple-400' },
 ];
 
 export default function DashboardPage() {
@@ -208,7 +185,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
               {GAMES.filter(g => !mutedGames[g.key]).map(g => (
                 <Link key={g.title} href={g.href} className="bg-[#111111] rounded-2xl p-5 flex items-center gap-4 group">
-                  <span className="text-3xl">{g.icon}</span>
+                  <g.Icon size={22} className="text-white/70 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="text-white font-bold text-sm">{g.title}</p>

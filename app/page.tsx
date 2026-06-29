@@ -1,22 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Gem, Layers, Brain } from 'lucide-react';
 import Logo from '@/components/Logo';
 import Leaderboard from '@/components/Leaderboard';
 
 const GAMES = [
-  {
-    title: 'Mines',
-    desc: 'Reveal cells, avoid mines, cash out anytime.',
-    icon: '💎',
-    tag: 'HIGH RISK',
-  },
-  {
-    title: 'Memory',
-    desc: 'Memorize cards and match all pairs to win.',
-    icon: '🃏',
-    tag: 'SKILL',
-  },
+  { title: 'Mines', desc: 'Reveal cells, avoid mines, cash out anytime.', Icon: Gem, tag: 'HIGH RISK' },
+  { title: 'Memory', desc: 'Memorize cards and match all pairs to win.', Icon: Layers, tag: 'SKILL' },
+  { title: 'Text Recall', desc: 'Read a passage, fill in the missing words.', Icon: Brain, tag: 'MEMORY' },
 ];
 
 export default function LandingPage() {
@@ -94,7 +86,7 @@ export default function LandingPage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl">{g.icon}</span>
+                  <g.Icon size={24} className="text-white/70" />
                   <div>
                     <p className="text-white font-bold text-sm">{g.title}</p>
                     <p className="text-white/40 text-xs mt-0.5">{g.desc}</p>

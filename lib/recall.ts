@@ -1,100 +1,80 @@
-export interface RecallQuestion {
-  question: string;
-  options: string[];
-  correctIndex: number;
+export interface RecallToken {
+  type: 'word' | 'space';
+  value: string;
+  blank: boolean;
+  blankIndex: number; // -1 if not blank
+  charCount: number;  // character count hint for input sizing (0 if not blank)
+}
+
+export interface BlankFillResult {
+  tokens: RecallToken[];
+  answers: string[];
+  totalBlanks: number;
 }
 
 export const DIFFICULTY_CONFIG = {
-  'Very Simple': { questions: 1, multiplier: 1.2 },
-  'Simple':      { questions: 2, multiplier: 1.5 },
-  'Normal':      { questions: 3, multiplier: 2.0 },
-  'Complex':     { questions: 4, multiplier: 3.0 },
-  'Difficult':   { questions: 5, multiplier: 5.0 },
+  'Very Simple': { blankRatio: 0.10, multiplier: 1.2 },
+  'Simple':      { blankRatio: 0.20, multiplier: 1.5 },
+  'Normal':      { blankRatio: 0.30, multiplier: 2.0 },
+  'Complex':     { blankRatio: 0.40, multiplier: 3.0 },
+  'Difficult':   { blankRatio: 0.50, multiplier: 5.0 },
 } as const;
 
 export type Difficulty = keyof typeof DIFFICULTY_CONFIG;
-
 export const DIFFICULTIES = Object.keys(DIFFICULTY_CONFIG) as Difficulty[];
 
-// Fisher-Yates shuffle (in-place)
 function shuffle<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return arr;
+  return a;
 }
 
-export function generateRecallQuestions(text: string, difficulty: Difficulty): RecallQuestion[] {
-  const count = DIFFICULTY_CONFIG[difficulty].questions;
+export function generateBlankFill(text: string, difficulty: Difficulty): BlankFillResult {
+  const { blankRatio } = DIFFICULTY_CONFIG[difficulty];
 
-  // Split into sentences of at least 4 words
-  const sentences = text
-    .split(/(?<=[.!?])\s+|[.!?]\s*$/)
-    .map(s => s.trim())
-    .filter(s => s.split(/\s+/).length >= 4);
+  // Split text into alternating word/whitespace tokens, drop empty strings
+  const rawParts = text.split(/(\s+)/).filter(p => p !== '');
 
-  interface Candidate { sentence: string; raw: string; clean: string; }
-  const allCandidates: Candidate[] = [];
+  interface RawToken { type: 'word' | 'space'; value: string }
+  const rawTokens: RawToken[] = rawParts.map(p => ({
+    type: /^\s+$/.test(p) ? 'space' : 'word',
+    value: p,
+  }));
 
-  for (const sentence of sentences) {
-    const words = sentence.split(/\s+/);
-    // Skip first word (too obvious); look for a keyword in the rest
-    for (let i = 1; i < words.length; i++) {
-      const raw = words[i];
-      const clean = raw.replace(/[^a-zA-Z0-9]/g, '');
-      if (clean.length < 3) continue;
-      const isProper = /^[A-Z]/.test(clean) && i > 0;
-      const isNumber = /^\d+$/.test(clean);
-      const isLong   = clean.length >= 6;
-      if (isProper || isNumber || isLong) {
-        allCandidates.push({ sentence, raw, clean });
-        break; // one keyword per sentence
-      }
+  // Find indices of blankable words (alpha/numeric content ≥ 3 chars)
+  const blankableIndices: number[] = [];
+  rawTokens.forEach((tok, i) => {
+    if (tok.type === 'word') {
+      const clean = tok.value.replace(/[^a-zA-Z0-9]/g, '');
+      if (clean.length >= 3) blankableIndices.push(i);
     }
-  }
+  });
 
-  // Shuffle and pick unique-word candidates
-  const shuffled = shuffle([...allCandidates]);
-  const usedCleans = new Set<string>();
-  const selected: Candidate[] = [];
+  const blankCount = Math.max(1, Math.floor(blankableIndices.length * blankRatio));
+  const blankSet = new Set(shuffle([...blankableIndices]).slice(0, blankCount));
 
-  for (const c of shuffled) {
-    if (selected.length >= count) break;
-    if (!usedCleans.has(c.clean.toLowerCase())) {
-      selected.push(c);
-      usedCleans.add(c.clean.toLowerCase());
+  const answers: string[] = [];
+  let answerIdx = 0;
+
+  const tokens: RecallToken[] = rawTokens.map((tok, i) => {
+    if (tok.type === 'word' && blankSet.has(i)) {
+      const clean = tok.value.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+      answers.push(clean);
+      return { type: 'word', value: tok.value, blank: true, blankIndex: answerIdx++, charCount: clean.length };
     }
-  }
+    return { type: tok.type as 'word' | 'space', value: tok.value, blank: false, blankIndex: -1, charCount: 0 };
+  });
 
-  // Distractor pool: all candidate words not chosen as answers
-  const distractorPool = allCandidates
-    .map(c => c.clean)
-    .filter(w => !usedCleans.has(w.toLowerCase()));
+  return { tokens, answers, totalBlanks: answers.length };
+}
 
-  const fallbacks = ['something', 'nothing', 'another', 'several', 'always', 'never', 'certain'];
-
-  return selected.map(({ sentence, raw, clean }) => {
-    // Blank the FIRST occurrence of the raw word in the sentence
-    const blanked = sentence.replace(raw, '___');
-
-    // Build distractor list
-    const seen = new Set([clean.toLowerCase()]);
-    const distractors: string[] = [];
-    for (const d of shuffle([...distractorPool])) {
-      if (distractors.length >= 3) break;
-      if (!seen.has(d.toLowerCase())) { seen.add(d.toLowerCase()); distractors.push(d); }
-    }
-    for (const f of fallbacks) {
-      if (distractors.length >= 3) break;
-      if (!seen.has(f.toLowerCase())) { seen.add(f.toLowerCase()); distractors.push(f); }
-    }
-
-    const options = shuffle([...distractors.slice(0, 3), clean]);
-    return {
-      question: `Fill in the blank:\n"${blanked}"`,
-      options,
-      correctIndex: options.indexOf(clean),
-    };
+export function gradeAnswers(answers: string[], userAnswers: string[]): number[] {
+  return answers.map((correct, i) => {
+    const user = (userAnswers[i] ?? '').trim().toLowerCase().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+    const expected = correct.toLowerCase();
+    return user === expected ? 1 : 0;
   });
 }

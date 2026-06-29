@@ -1,9 +1,16 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { Gem, Star, Moon, Skull, Globe, Zap, Heart, Crown, Layers, type LucideIcon } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 
-const ICONS = ['🎰', '💎', '🃏', '♠️', '🔮', '⭐', '💀', '🌙'];
+type IconKey = 'gem' | 'star' | 'moon' | 'skull' | 'globe' | 'zap' | 'heart' | 'crown';
+const ICON_MAP: Record<IconKey, LucideIcon> = { gem: Gem, star: Star, moon: Moon, skull: Skull, globe: Globe, zap: Zap, heart: Heart, crown: Crown };
+const ICON_KEYS: IconKey[] = ['gem', 'star', 'moon', 'skull', 'globe', 'zap', 'heart', 'crown'];
+function CardIcon({ name }: { name: string }) {
+  const Icon = ICON_MAP[name as IconKey];
+  return Icon ? <Icon size={22} className="text-white/80" /> : null;
+}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -90,7 +97,7 @@ export default function MemoryPage() {
     setBalance(data.balance);
     setGameId(data.gameId);
 
-    const shuffled = shuffle([...ICONS, ...ICONS]);
+    const shuffled = shuffle([...ICON_KEYS, ...ICON_KEYS]);
     const initialFlipped = Array(16).fill(true);
     setCards(shuffled);
     setFlipped(initialFlipped);
@@ -210,7 +217,7 @@ export default function MemoryPage() {
           </button>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-xl">🃏</span>
+              <Layers size={20} className="text-white/70" />
               <h1 className="text-white font-bold text-lg">Memory</h1>
             </div>
             <p className="text-white/30 text-xs">Memorize · Match · Win</p>
@@ -349,7 +356,7 @@ export default function MemoryPage() {
                   key={idx}
                   onClick={() => handleCardClick(idx)}
                   disabled={isFlipped || isMatch || phase !== 'playing'}
-                  className={`aspect-square rounded-xl text-2xl flex items-center justify-center transition-all duration-200 select-none ${
+                  className={`aspect-square rounded-xl flex items-center justify-center transition-all duration-200 select-none ${
                     isMatch
                       ? 'bg-green-500/10 border border-green-500/25 cursor-default'
                       : isFlipped
@@ -359,7 +366,7 @@ export default function MemoryPage() {
                       : 'bg-[#111111] border border-white/5 cursor-default'
                   }`}
                 >
-                  {(isFlipped || isMatch) ? icon : ''}
+                  {(isFlipped || isMatch) ? <CardIcon name={icon} /> : null}
                 </button>
               );
             })}

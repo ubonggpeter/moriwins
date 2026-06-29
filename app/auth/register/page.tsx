@@ -54,7 +54,7 @@ function RegisterForm() {
 
         {/* Free credits banner */}
         <div className="bg-yellow-400/10 border border-yellow-400/20 rounded-2xl px-4 py-3 mb-4 flex items-center gap-3">
-          <span className="text-2xl">🎁</span>
+          <span className="w-8 h-8 flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-6 h-6 text-yellow-400"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12v10H4V12M22 7H2v5h20V7zM12 22V7M12 7a2 2 0 01-2-2c0-1.1.9-2 2-2 .6 0 1.1.3 1.5.7M12 7a2 2 0 002-2c0-1.1-.9-2-2-2-.6 0-1.1.3-1.5.7" /></svg></span>
           <div>
             <p className="text-yellow-400 text-sm font-bold font-mono">$1,000 FREE CREDITS</p>
             <p className="text-white/40 text-xs mt-0.5">Instantly credited on signup</p>
@@ -64,7 +64,7 @@ function RegisterForm() {
         {/* Referral notice */}
         {refBy && (
           <div className="bg-green-500/10 border border-green-500/20 rounded-2xl px-4 py-3 mb-4 flex items-center gap-3">
-            <span className="text-2xl">🤝</span>
+            <span className="w-8 h-8 flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-6 h-6 text-green-400"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span>
             <div>
               <p className="text-green-400 text-sm font-bold">You were referred by a friend</p>
               <p className="text-white/40 text-xs mt-0.5">They&apos;ll earn $50 when you join</p>

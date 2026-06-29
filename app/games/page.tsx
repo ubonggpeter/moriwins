@@ -2,42 +2,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Gem, Layers, Brain } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 
 const GAMES = [
-  {
-    key: 'mines' as const,
-    title: 'Mines',
-    subtitle: 'Minesweeper · Bet-based',
-    desc: 'Reveal cells and avoid mines. Cash out anytime before you explode.',
-    icon: '💎',
-    href: '/games/mines',
-    tag: 'HIGH RISK',
-    tagColor: 'text-red-400',
-    rtp: '97% RTP',
-  },
-  {
-    key: 'memory' as const,
-    title: 'Memory',
-    subtitle: 'Card Match · Skill-based',
-    desc: 'Memorize the card layout and match all pairs to win.',
-    icon: '🃏',
-    href: '/games/memory',
-    tag: 'SKILL',
-    tagColor: 'text-blue-400',
-    rtp: 'Up to 2.5x',
-  },
-  {
-    key: 'recall' as const,
-    title: 'Text Recall',
-    subtitle: 'Read & Remember · Text-based',
-    desc: 'Read a text passage then answer questions from memory.',
-    icon: '🧠',
-    href: '/games/recall',
-    tag: 'MEMORY',
-    tagColor: 'text-purple-400',
-    rtp: 'Up to 5x',
-  },
+  { key: 'mines'  as const, title: 'Mines',       subtitle: 'Minesweeper · Bet-based',     desc: 'Reveal cells and avoid mines. Cash out anytime before you explode.', Icon: Gem,    href: '/games/mines',  tag: 'HIGH RISK', tagColor: 'text-red-400',    rtp: '97% RTP'   },
+  { key: 'memory' as const, title: 'Memory',      subtitle: 'Card Match · Skill-based',     desc: 'Memorize the card layout and match all pairs to win.',              Icon: Layers, href: '/games/memory', tag: 'SKILL',     tagColor: 'text-blue-400',   rtp: 'Up to 2.5x' },
+  { key: 'recall' as const, title: 'Text Recall', subtitle: 'Fill the Blanks · Text-based', desc: 'Read a passage, then fill in the missing words from memory.',       Icon: Brain,  href: '/games/recall', tag: 'MEMORY',    tagColor: 'text-purple-400', rtp: 'Up to 5x'  },
 ];
 
 export default function GamesPage() {
@@ -76,7 +47,7 @@ export default function GamesPage() {
           {GAMES.filter(g => !muted[g.key]).map(g => (
             <Link key={g.key} href={g.href} className="block bg-[#111111] rounded-2xl p-5 md:p-6">
               <div className="flex items-start justify-between mb-4">
-                <span className="text-4xl md:text-5xl">{g.icon}</span>
+                <g.Icon size={36} className="text-white/70 md:w-12 md:h-12" />
                 <div className="flex items-center gap-2">
                   <span className={`text-[10px] tracking-wider ${g.tagColor}`}>{g.tag}</span>
                   <span className="text-[10px] text-white/25 border border-white/10 px-2 py-0.5 rounded-full">

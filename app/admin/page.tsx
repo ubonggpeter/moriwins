@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { Gem, Layers, Brain, Pencil, Upload, Loader2, Check, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 
@@ -451,16 +452,16 @@ export default function AdminPage() {
             <div className="space-y-3">
               <p className="text-white/40 text-xs uppercase tracking-wider">Game Availability</p>
               {[
-                { key: 'mines',  label: 'Mines',       icon: '💎', desc: 'Minesweeper · Bet-based' },
-                { key: 'memory', label: 'Memory',      icon: '🃏', desc: 'Card Match · Skill-based' },
-                { key: 'recall', label: 'Text Recall', icon: '🧠', desc: 'Read & recall · Text-based' },
+                { key: 'mines',  label: 'Mines',       Icon: Gem,    desc: 'Minesweeper · Bet-based' },
+                { key: 'memory', label: 'Memory',      Icon: Layers, desc: 'Card Match · Skill-based' },
+                { key: 'recall', label: 'Text Recall', Icon: Brain,  desc: 'Fill blanks · Text-based' },
               ].map(g => {
                 const isMuted = gameMuted[g.key];
                 const toggling = gameToggling[g.key];
                 return (
                   <div key={g.key} className="bg-[#111111] rounded-2xl p-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">{g.icon}</span>
+                      <g.Icon size={20} className="text-white/60" />
                       <div>
                         <p className="text-white font-bold text-sm">{g.label}</p>
                         <p className="text-white/30 text-xs">{g.desc}</p>
@@ -534,7 +535,7 @@ export default function AdminPage() {
                               : 'bg-[#1c1c1c] text-white/40 border border-white/[0.08] hover:text-white'
                           }`}
                         >
-                          {m === 'paste' ? '✏️ Paste' : '📄 PDF / DOCX'}
+                          {m === 'paste' ? <><Pencil size={12} className="inline mr-1" />Paste</> : <><FileText size={12} className="inline mr-1" />PDF / DOCX</>}
                         </button>
                       ))}
                     </div>
@@ -554,7 +555,7 @@ export default function AdminPage() {
                           disabled={recallUploading}
                           className="w-full border-2 border-dashed border-white/15 rounded-xl p-6 text-center hover:border-white/25 transition-colors disabled:opacity-50"
                         >
-                          <p className="text-2xl mb-2">{recallUploading ? '⏳' : newRecall.textContent ? '✅' : '📄'}</p>
+                          <div className="flex justify-center mb-2">{recallUploading ? <Loader2 size={24} className="text-white/40 animate-spin" /> : newRecall.textContent ? <Check size={24} className="text-green-400" /> : <Upload size={24} className="text-white/30" />}</div>
                           <p className="text-white/50 text-sm">
                             {recallUploading ? 'Extracting...' : newRecall.textContent ? 'Extracted — tap to replace' : 'Tap to upload PDF or DOCX'}
                           </p>
