@@ -43,28 +43,55 @@ const ITEMS = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const isActive = (href: string) =>
+    pathname === href || (href === '/games' && pathname.startsWith('/games'));
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-white/8">
-      <div className="max-w-[430px] mx-auto flex items-center justify-around h-16 px-2">
-        {ITEMS.map(item => {
-          const active = pathname === item.href || (item.href === '/games' && pathname.startsWith('/games'));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex flex-col items-center gap-1 min-w-[56px]"
-            >
-              <span className={active ? 'opacity-100' : 'opacity-35'}>
-                {item.icon(active)}
-              </span>
-              <span className={`text-[10px] tracking-wide ${active ? 'text-white' : 'text-white/35'}`}>
+    <>
+      {/* Desktop top nav */}
+      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-50 bg-black/95 border-b border-white/[0.06] backdrop-blur-sm h-14">
+        <div className="max-w-4xl mx-auto px-6 flex items-center justify-between w-full">
+          <span className="text-white font-black tracking-widest text-sm">MORIWINS</span>
+          <div className="flex items-center gap-1">
+            {ITEMS.map(item => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                  isActive(item.href)
+                    ? 'text-white bg-white/10'
+                    : 'text-white/40 hover:text-white hover:bg-white/5'
+                }`}
+              >
                 {item.label}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile bottom nav */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-white/8">
+        <div className="flex items-center justify-around h-16 px-2">
+          {ITEMS.map(item => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex flex-col items-center gap-1 min-w-[56px]"
+              >
+                <span className={active ? 'opacity-100' : 'opacity-35'}>
+                  {item.icon(active)}
+                </span>
+                <span className={`text-[10px] tracking-wide ${active ? 'text-white' : 'text-white/35'}`}>
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }

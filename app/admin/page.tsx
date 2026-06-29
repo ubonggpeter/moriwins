@@ -146,9 +146,9 @@ export default function AdminPage() {
   const totalBalance = users.reduce((s, u) => s + u.balance, 0);
 
   return (
-    <div className="min-h-screen bg-black pb-28">
-      <div className="max-w-[900px] mx-auto px-5">
-        <div className="pt-10 pb-6 flex items-center gap-3">
+    <div className="min-h-screen bg-black pb-28 md:pb-10 md:pt-14">
+      <div className="max-w-4xl mx-auto px-5 md:px-8">
+        <div className="pt-8 md:pt-6 pb-6 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-yellow-400 flex items-center justify-center">
             <span className="text-black text-sm font-black">A</span>
           </div>
@@ -173,12 +173,12 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="flex border-b border-white/[0.06] mb-6">
+        <div className="flex border-b border-white/[0.06] mb-6 overflow-x-auto scrollbar-none">
           {TABS.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-5 py-3 text-sm font-bold tracking-wide transition-colors ${
+              className={`px-5 py-3 text-sm font-bold tracking-wide transition-colors whitespace-nowrap ${
                 tab === t.key ? 'text-white border-b-2 border-white -mb-px' : 'text-white/30 hover:text-white/60'
               }`}
             >

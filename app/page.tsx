@@ -28,7 +28,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-black flex flex-col max-w-[430px] mx-auto">
+    <main className="min-h-screen bg-black flex flex-col max-w-lg md:max-w-2xl mx-auto">
       {/* Hero */}
       <section className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-10 text-center">
         <div

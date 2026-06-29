@@ -41,11 +41,11 @@ export default function GamesPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-black pb-20">
-      <div className="max-w-[430px] mx-auto px-5">
+    <div className="min-h-screen bg-black pb-20 md:pb-10 md:pt-14">
+      <div className="max-w-lg md:max-w-4xl mx-auto px-5 md:px-8">
 
         {/* Header */}
-        <div className="flex items-center gap-3 pt-12 pb-6">
+        <div className="flex items-center gap-3 pt-10 md:pt-8 pb-6">
           <button
             onClick={() => router.back()}
             className="w-9 h-9 rounded-full bg-[#111111] flex items-center justify-center"
@@ -55,21 +55,21 @@ export default function GamesPage() {
             </svg>
           </button>
           <div>
-            <h1 className="text-white font-bold text-lg">Games</h1>
+            <h1 className="text-white font-bold text-lg md:text-xl">Games</h1>
             <p className="text-white/30 text-xs">Choose your game</p>
           </div>
         </div>
 
-        {/* Game cards */}
-        <div className="space-y-4">
+        {/* Game cards — 1 col mobile, 2 col desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {GAMES.map(g => {
             const isMuted = muted[g.key];
-            const cardClass = `block bg-[#111111] rounded-2xl p-5 ${isMuted ? 'opacity-60' : ''}`;
+            const cardClass = `block bg-[#111111] rounded-2xl p-5 md:p-6 ${isMuted ? 'opacity-60' : ''}`;
 
             const inner = (
               <>
                 <div className="flex items-start justify-between mb-4">
-                  <span className="text-4xl">{g.icon}</span>
+                  <span className="text-4xl md:text-5xl">{g.icon}</span>
                   <div className="flex items-center gap-2">
                     {isMuted ? (
                       <span className="text-[10px] tracking-wider text-orange-400">MAINTENANCE</span>
@@ -81,7 +81,7 @@ export default function GamesPage() {
                     </span>
                   </div>
                 </div>
-                <p className="text-white font-bold text-base mb-1">{g.title}</p>
+                <p className="text-white font-bold text-base md:text-lg mb-1">{g.title}</p>
                 <p className="text-white/35 text-xs mb-1">{g.subtitle}</p>
                 <p className="text-white/30 text-xs leading-relaxed mb-4">{g.desc}</p>
                 {isMuted ? (

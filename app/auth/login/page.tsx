@@ -37,8 +37,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black flex items-center justify-center px-6">
-      <div className="w-full max-w-[430px]">
+    <main className="min-h-screen bg-black flex items-center justify-center px-6 py-10">
+      <div className="w-full max-w-[430px] md:bg-[#0a0a0a] md:border md:border-white/[0.06] md:rounded-3xl md:p-10">
         <div className="flex flex-col items-center mb-10">
           <Logo size="md" />
           <h1 className="text-2xl font-black tracking-widest mt-4">MORIWINS</h1>
