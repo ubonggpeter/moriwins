@@ -256,7 +256,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-black pb-28 md:pb-10 md:pt-14">
-      <div className="max-w-4xl mx-auto px-5 md:px-8">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="pt-8 md:pt-6 pb-6 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-yellow-400 flex items-center justify-center">
             <span className="text-black text-sm font-black">A</span>

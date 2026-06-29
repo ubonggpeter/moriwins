@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth';
 import { getUserById, sql, initSchema } from '@/lib/db';
-import { generateBlankFill, gradeAnswers, DIFFICULTY_CONFIG, type Difficulty } from '@/lib/recall';
+import { generateChunkedBlankFill, gradeAnswers, DIFFICULTY_CONFIG, type Difficulty } from '@/lib/recall';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,20 +24,22 @@ export async function POST(request: Request) {
   await initSchema();
   const body = await request.json();
 
-  // Training mode — no bet, no DB write, return full tokens (with answers) for client-side grading
+  // Training mode — no bet, no DB write
   if (body.training) {
     const text = (body.text as string)?.trim();
     const difficulty = ((body.difficulty as string) ?? 'Normal') as Difficulty;
     if (!text) return NextResponse.json({ error: 'No text provided' }, { status: 400 });
     if (!(difficulty in DIFFICULTY_CONFIG)) return NextResponse.json({ error: 'Invalid difficulty' }, { status: 400 });
-    const result = generateBlankFill(text, difficulty);
+
+    const result = generateChunkedBlankFill(text, difficulty);
     if (result.totalBlanks === 0) {
       return NextResponse.json({ error: 'Text too short to generate blanks — try a longer passage' }, { status: 400 });
     }
+
     return NextResponse.json({
       training: true,
-      tokens: result.tokens,   // includes answers (for local grading)
-      answers: result.answers,
+      chunks: result.chunks,
+      totalChunks: result.chunks.length,
       totalBlanks: result.totalBlanks,
       multiplier: DIFFICULTY_CONFIG[difficulty].multiplier,
     });
@@ -59,14 +61,19 @@ export async function POST(request: Request) {
 
   const text = texts[0];
   const difficulty = text.difficulty as Difficulty;
-  const result = generateBlankFill(text.text_content as string, difficulty);
+  const result = generateChunkedBlankFill(text.text_content as string, difficulty);
 
   if (result.totalBlanks === 0) {
     return NextResponse.json({ error: 'This text does not have enough content for blanks' }, { status: 400 });
   }
 
   const gameId = uuidv4();
-  const stored = { tokens: result.tokens, answers: result.answers, totalBlanks: result.totalBlanks, multiplier: DIFFICULTY_CONFIG[difficulty].multiplier };
+  const stored = {
+    chunks: result.chunks,
+    allAnswers: result.allAnswers,
+    totalBlanks: result.totalBlanks,
+    multiplier: DIFFICULTY_CONFIG[difficulty].multiplier,
+  };
 
   await sql.begin(async tx => {
     const [updated] = await tx`
@@ -81,25 +88,26 @@ export async function POST(request: Request) {
     `;
   });
 
-  // Strip answer values from blank tokens before sending to client
-  const clientTokens = result.tokens.map(tok =>
-    tok.blank ? { ...tok, value: '' } : tok
-  );
+  // Send chunks to client: strip blank values, keep answers for real-time UI
+  const clientChunks = result.chunks.map(chunk => ({
+    chunkText: chunk.chunkText,
+    tokens: chunk.tokens.map(tok => tok.blank ? { ...tok, value: '' } : tok),
+    answers: chunk.answers,
+    totalBlanks: chunk.totalBlanks,
+  }));
 
   return NextResponse.json({
     gameId,
     textTitle: text.title as string,
-    textContent: text.text_content as string,
-    disappearsAfterReading: text.disappears_after_reading as boolean,
     difficulty,
     multiplier: DIFFICULTY_CONFIG[difficulty].multiplier,
-    tokens: clientTokens,
-    answers: result.answers,
+    chunks: clientChunks,
+    totalChunks: result.chunks.length,
     totalBlanks: result.totalBlanks,
   });
 }
 
-// PATCH — submit answers
+// PATCH — submit all answers (flat array across all chunks)
 export async function PATCH(request: Request) {
   await initSchema();
   const user = await getAuthedUser();
@@ -116,12 +124,20 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Game already ended' }, { status: 400 });
   }
 
-  const stored = parseJsonb<{ tokens: unknown[]; answers: string[]; totalBlanks: number; multiplier: number }>(game.questions);
-  const { answers, totalBlanks, multiplier } = stored;
+  const stored = parseJsonb<{
+    chunks?: unknown[];
+    allAnswers?: string[];
+    answers?: string[]; // legacy format fallback
+    totalBlanks: number;
+    multiplier: number;
+  }>(game.questions);
 
-  const grades = gradeAnswers(answers, userAnswers as string[]);
+  const allAnswers = stored.allAnswers ?? stored.answers ?? [];
+  const { totalBlanks, multiplier } = stored;
+
+  const grades = gradeAnswers(allAnswers, userAnswers as string[]);
   const correctCount = grades.reduce((s, g) => s + g, 0);
-  const fraction = correctCount / totalBlanks;
+  const fraction = totalBlanks > 0 ? correctCount / totalBlanks : 0;
 
   const bet = Number(game.bet);
   const payout = fraction > 0 ? Math.floor(bet * multiplier * fraction) : 0;
@@ -146,7 +162,7 @@ export async function PATCH(request: Request) {
     balance: Number(balRow.balance),
     correctCount,
     totalBlanks,
-    correctAnswers: answers,
+    correctAnswers: allAnswers,
     grades,
   });
 }

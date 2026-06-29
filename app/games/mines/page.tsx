@@ -174,7 +174,7 @@ export default function MinesPage() {
 
   return (
     <div className="min-h-screen bg-black pb-24 md:pb-10 md:pt-14">
-      <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8">
+      <div className="w-full max-w-2xl mx-auto px-4 sm:px-6">
 
         {/* Header */}
         <div className="flex items-center gap-3 pt-12 pb-6">

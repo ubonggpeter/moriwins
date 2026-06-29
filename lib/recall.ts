@@ -71,6 +71,42 @@ export function generateBlankFill(text: string, difficulty: Difficulty): BlankFi
   return { tokens, answers, totalBlanks: answers.length };
 }
 
+export interface ChunkBlankFillResult {
+  chunks: Array<{
+    chunkText: string;
+    tokens: RecallToken[];
+    answers: string[];
+    totalBlanks: number;
+  }>;
+  allAnswers: string[];
+  totalBlanks: number;
+}
+
+export function generateChunkedBlankFill(
+  text: string,
+  difficulty: Difficulty,
+  wordsPerChunk = 15,
+): ChunkBlankFillResult {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const allAnswers: string[] = [];
+  const chunks: ChunkBlankFillResult['chunks'] = [];
+
+  for (let i = 0; i < words.length; i += wordsPerChunk) {
+    const chunkWords = words.slice(i, i + wordsPerChunk);
+    const chunkText = chunkWords.join(' ');
+    const result = generateBlankFill(chunkText, difficulty);
+    chunks.push({
+      chunkText: result.tokens.map(t => t.value).join(''),
+      tokens: result.tokens,
+      answers: result.answers,
+      totalBlanks: result.totalBlanks,
+    });
+    allAnswers.push(...result.answers);
+  }
+
+  return { chunks, allAnswers, totalBlanks: allAnswers.length };
+}
+
 export function gradeAnswers(answers: string[], userAnswers: string[]): number[] {
   return answers.map((correct, i) => {
     const user = (userAnswers[i] ?? '').trim().toLowerCase().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');

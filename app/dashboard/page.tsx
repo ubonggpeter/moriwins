@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black pb-28 md:pb-10 md:pt-14">
-      <div className="max-w-lg md:max-w-4xl mx-auto px-5 md:px-8">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
         <div className="flex items-center justify-between pt-10 md:pt-8 pb-6">
@@ -111,46 +111,33 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Referral card */}
+            {/* Referral card — compact banner */}
             {referral && (
-              <div className="bg-[#111111] rounded-2xl p-5 mb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-white font-bold text-sm">Invite Friends</p>
-                    <p className="text-white/30 text-xs mt-0.5">Earn $50 for every signup</p>
-                  </div>
-                  <span className="bg-green-500/15 text-green-400 text-xs font-black px-3 py-1 rounded-full">+$50</span>
-                </div>
-
-                <div className="flex gap-3 mb-4">
-                  <div className="bg-[#1a1a1a] rounded-xl p-4 shrink-0">
-                    <p className="text-white/30 text-[10px] uppercase tracking-wider mb-1">Your code</p>
-                    <p className="text-yellow-400 text-sm font-mono font-black tracking-widest">{referral.referralCode}</p>
-                  </div>
-                  <div className="bg-[#1a1a1a] rounded-xl p-4 flex-1 min-w-0">
-                    <p className="text-white/30 text-[10px] uppercase tracking-wider mb-1">Your referral link</p>
-                    <p className="text-white text-xs font-mono break-all leading-relaxed">{referral.referralLink}</p>
+              <div className="bg-[#111111] rounded-2xl p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-white font-bold text-sm">Invite Friends</p>
+                  <div className="flex items-center gap-3">
+                    <span className="text-white font-black text-sm">{referral.totalReferrals}</span>
+                    <span className="text-white/30 text-[10px]">refs</span>
+                    <span className="text-green-400 font-black text-sm font-mono">${referral.referralEarnings.toLocaleString()}</span>
+                    <span className="bg-green-500/15 text-green-400 text-[10px] font-black px-2 py-0.5 rounded-full">+$50</span>
                   </div>
                 </div>
-
-                <button
-                  onClick={copyReferralLink}
-                  className={`w-full font-bold text-sm py-3 rounded-full transition-colors mb-4 ${
-                    copied ? 'bg-green-500 text-black' : 'bg-white text-black hover:bg-gray-100'
-                  }`}
-                >
-                  {copied ? '✓ Link Copied!' : 'Copy Referral Link'}
-                </button>
-
-                <div className="flex gap-6 pt-3 border-t border-white/[0.06]">
-                  <div>
-                    <p className="text-white font-black text-xl">{referral.totalReferrals}</p>
-                    <p className="text-white/30 text-xs mt-0.5">Referrals</p>
+                <div className="flex items-center gap-2">
+                  <div className="bg-[#1a1a1a] rounded-lg px-3 py-1.5 shrink-0">
+                    <span className="text-yellow-400 text-xs font-mono font-black tracking-widest">{referral.referralCode}</span>
                   </div>
-                  <div>
-                    <p className="text-green-400 font-black text-xl font-mono">${referral.referralEarnings.toLocaleString()}</p>
-                    <p className="text-white/30 text-xs mt-0.5">Earned</p>
+                  <div className="bg-[#1a1a1a] rounded-lg px-3 py-1.5 flex-1 min-w-0 overflow-hidden">
+                    <p className="text-white/40 text-[10px] font-mono truncate">{referral.referralLink}</p>
                   </div>
+                  <button
+                    onClick={copyReferralLink}
+                    className={`shrink-0 font-bold text-xs px-4 py-1.5 rounded-full transition-colors ${
+                      copied ? 'bg-green-500 text-black' : 'bg-white text-black hover:bg-gray-100'
+                    }`}
+                  >
+                    {copied ? '✓' : 'Copy'}
+                  </button>
                 </div>
               </div>
             )}

@@ -1,11 +1,20 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Brain, BookOpen, DollarSign, FileText, Pencil, Upload, Check, X, ChevronLeft } from 'lucide-react';
+import { Brain, BookOpen, DollarSign, FileText, Pencil, Upload, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
+import { gradeAnswers } from '@/lib/recall';
 import type { RecallToken } from '@/lib/recall';
 
 type Mode = 'training' | 'earning';
+type BlankStatus = 'idle' | 'correct' | 'wrong';
+
+interface ChunkData {
+  chunkText: string;
+  tokens: RecallToken[];
+  answers: string[];
+  totalBlanks: number;
+}
 
 type Phase =
   | { type: 'mode-select' }
@@ -17,26 +26,26 @@ type Phase =
       mode: Mode;
       gameId?: string;
       title: string;
-      content: string;
-      disappears: boolean;
+      chunkIndex: number;
+      totalChunks: number;
+      chunks: ChunkData[];
       difficulty: string;
       multiplier: number;
-      tokens: RecallToken[];
-      answers: string[];
-      totalBlanks: number;
+      prevUserAnswers: string[][];
     }
   | {
       type: 'filling';
       mode: Mode;
       gameId?: string;
       title: string;
-      tokens: RecallToken[];
-      answers: string[];
-      totalBlanks: number;
-      userAnswers: string[];
-      blankStatuses: ('idle' | 'correct' | 'wrong')[];
-      textGone: boolean;
+      chunkIndex: number;
+      totalChunks: number;
+      chunks: ChunkData[];
+      difficulty: string;
       multiplier: number;
+      prevUserAnswers: string[][];
+      userAnswers: string[];
+      blankStatuses: BlankStatus[];
     }
   | { type: 'submitting' }
   | {
@@ -88,7 +97,7 @@ export default function RecallPage() {
     if (trainingInput === 'paste') {
       text = pastedText.trim();
       if (!text) { setError('Please paste some text to study'); return; }
-      if (text.length < 100) { setError('Text too short — paste at least a full paragraph'); return; }
+      if (text.length < 50) { setError('Text too short — paste at least a paragraph'); return; }
       setPhase({ type: 'loading', label: 'Generating blanks...' });
     } else {
       if (!uploadFile) { setError('Please select a PDF or DOCX file'); return; }
@@ -114,13 +123,12 @@ export default function RecallPage() {
       type: 'reading',
       mode: 'training',
       title: uploadFile?.name.replace(/\.[^/.]+$/, '') ?? 'Training Session',
-      content: text,
-      disappears: false,
+      chunkIndex: 0,
+      totalChunks: data.totalChunks,
+      chunks: data.chunks,
       difficulty: trainingDifficulty,
-      multiplier: MULTIPLIERS[trainingDifficulty] ?? 1,
-      tokens: data.tokens,
-      answers: data.answers,
-      totalBlanks: data.totalBlanks,
+      multiplier: data.multiplier,
+      prevUserAnswers: [],
     });
   }
 
@@ -144,31 +152,41 @@ export default function RecallPage() {
       mode: 'earning',
       gameId: data.gameId,
       title: data.textTitle,
-      content: data.textContent,
-      disappears: data.disappearsAfterReading,
+      chunkIndex: 0,
+      totalChunks: data.totalChunks,
+      chunks: data.chunks,
       difficulty: data.difficulty,
       multiplier: data.multiplier,
-      tokens: data.tokens,
-      answers: data.answers,
-      totalBlanks: data.totalBlanks,
+      prevUserAnswers: [],
     });
   }
 
   function finishReading() {
     if (phase.type !== 'reading') return;
+    const chunk = phase.chunks[phase.chunkIndex];
     inputRefs.current = [];
+
+    // Skip filling if chunk has no blanks
+    if (chunk.totalBlanks === 0) {
+      if (phase.chunkIndex < phase.totalChunks - 1) {
+        setPhase({ ...phase, chunkIndex: phase.chunkIndex + 1 });
+      }
+      return;
+    }
+
     setPhase({
       type: 'filling',
       mode: phase.mode,
       gameId: phase.gameId,
       title: phase.title,
-      tokens: phase.tokens,
-      answers: phase.answers,
-      totalBlanks: phase.totalBlanks,
-      userAnswers: Array(phase.totalBlanks).fill(''),
-      blankStatuses: Array(phase.totalBlanks).fill('idle' as const),
-      textGone: phase.disappears,
+      chunkIndex: phase.chunkIndex,
+      totalChunks: phase.totalChunks,
+      chunks: phase.chunks,
+      difficulty: phase.difficulty,
       multiplier: phase.multiplier,
+      prevUserAnswers: phase.prevUserAnswers,
+      userAnswers: Array(chunk.totalBlanks).fill(''),
+      blankStatuses: Array(chunk.totalBlanks).fill('idle' as BlankStatus),
     });
   }
 
@@ -179,7 +197,7 @@ export default function RecallPage() {
       const ua = [...prev.userAnswers];
       const statuses = [...prev.blankStatuses];
       ua[blankIdx] = value;
-      const correct = prev.answers[blankIdx] ?? '';
+      const correct = prev.chunks[prev.chunkIndex].answers[blankIdx] ?? '';
       if (value.toLowerCase() === correct.toLowerCase()) {
         statuses[blankIdx] = 'correct';
       } else if (value.length > correct.length) {
@@ -194,32 +212,55 @@ export default function RecallPage() {
     if (next) next.focus();
   }
 
-  async function submitAnswers() {
+  async function goToNextChunk() {
     if (phase.type !== 'filling') return;
-    const { mode, gameId, userAnswers, answers, totalBlanks, blankStatuses } = phase;
+    const allPrevAnswers = [...phase.prevUserAnswers, phase.userAnswers];
+
+    if (phase.chunkIndex === phase.totalChunks - 1) {
+      // Last chunk — submit everything
+      await handleFinalSubmit(allPrevAnswers, phase);
+    } else {
+      // Advance to reading next chunk
+      inputRefs.current = [];
+      setPhase({
+        type: 'reading',
+        mode: phase.mode,
+        gameId: phase.gameId,
+        title: phase.title,
+        chunkIndex: phase.chunkIndex + 1,
+        totalChunks: phase.totalChunks,
+        chunks: phase.chunks,
+        difficulty: phase.difficulty,
+        multiplier: phase.multiplier,
+        prevUserAnswers: allPrevAnswers,
+      });
+    }
+  }
+
+  async function handleFinalSubmit(
+    allPrevAnswers: string[][],
+    fillingPhase: Extract<Phase, { type: 'filling' }>,
+  ) {
+    const { mode, gameId, chunks } = fillingPhase;
+    const allUserAnswers = allPrevAnswers.flat();
+    const allAnswers = chunks.flatMap(c => c.answers);
 
     if (mode === 'training') {
-      const grades = answers.map((correct, i) => {
-        const status = blankStatuses[i];
-        if (status === 'correct') return 1 as number;
-        if (status === 'wrong') return 0 as number;
-        const user = (userAnswers[i] ?? '').trim().toLowerCase().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
-        return (user === correct.toLowerCase() ? 1 : 0) as number;
-      });
+      const grades = gradeAnswers(allAnswers, allUserAnswers);
       const correctCount = grades.reduce((s, g) => s + g, 0);
       setPhase({
         type: 'result', mode: 'training',
-        won: correctCount === totalBlanks,
-        correctCount, totalBlanks,
-        correctAnswers: answers,
-        userAnswers, grades,
+        won: correctCount === allAnswers.length,
+        correctCount, totalBlanks: allAnswers.length,
+        correctAnswers: allAnswers,
+        userAnswers: allUserAnswers, grades,
       });
     } else {
       setPhase({ type: 'submitting' });
       const res = await fetch('/api/games/recall', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameId, answers: userAnswers }),
+        body: JSON.stringify({ gameId, answers: allUserAnswers }),
       });
       const data = await res.json();
       if (!res.ok) { setPhase({ type: 'earning-setup' }); setError(data.error ?? 'Submission failed'); return; }
@@ -228,7 +269,8 @@ export default function RecallPage() {
         type: 'result', mode: 'earning',
         won: data.won, payout: data.payout, balance: data.balance,
         correctCount: data.correctCount, totalBlanks: data.totalBlanks,
-        correctAnswers: data.correctAnswers, userAnswers, grades: data.grades,
+        correctAnswers: data.correctAnswers,
+        userAnswers: allUserAnswers, grades: data.grades,
       });
     }
   }
@@ -247,9 +289,16 @@ export default function RecallPage() {
     }
   }
 
+  // Chunk progress pill
+  const ChunkBadge = ({ idx, total }: { idx: number; total: number }) => (
+    <span className="bg-white/10 text-white/60 text-[10px] font-bold px-3 py-1 rounded-full">
+      Chunk {idx + 1} of {total}
+    </span>
+  );
+
   return (
-    <div className="min-h-screen bg-black pb-24 md:pb-10 md:pt-14">
-      <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8">
+    <div className="min-h-screen bg-black pb-28 md:pb-10 md:pt-14">
+      <div className="w-full max-w-2xl mx-auto px-4 sm:px-6">
 
         {/* Header */}
         <div className="flex items-center justify-between pt-10 md:pt-8 pb-6">
@@ -291,7 +340,7 @@ export default function RecallPage() {
               </div>
               <p className="text-white font-black text-xl mb-1">Training Mode</p>
               <p className="text-white/40 text-sm leading-relaxed mb-4">
-                Paste any text or upload a PDF / DOCX. Words disappear — type them back in from memory.
+                Paste any text or upload a PDF / DOCX. 15-word chunks — read each, fill the blanks.
               </p>
               <div className="flex items-center gap-4 text-white/25 text-xs">
                 <span className="flex items-center gap-1"><FileText size={12} /> PDF</span>
@@ -312,7 +361,7 @@ export default function RecallPage() {
               </div>
               <p className="text-white font-black text-xl mb-1">Earning Mode</p>
               <p className="text-white/40 text-sm leading-relaxed mb-4">
-                Bet on your memory. Words disappear from a curated passage — fill them all in correctly for a multiplied payout.
+                Bet on your memory. Read 15-word chunks, fill the blanks. Payout based on % correct across all chunks.
               </p>
               <div className="grid grid-cols-5 gap-1">
                 {Object.entries(MULTIPLIERS).map(([d, m]) => (
@@ -493,18 +542,20 @@ export default function RecallPage() {
               ) : (
                 <span className="bg-purple-500/15 text-purple-400 text-xs font-bold px-3 py-1 rounded-full">Training</span>
               )}
-              <span className="text-white/30 text-xs">{phase.totalBlanks} blanks</span>
+              <ChunkBadge idx={phase.chunkIndex} total={phase.totalChunks} />
             </div>
 
             <div className="bg-[#111111] rounded-2xl p-6">
-              <p className="text-white font-bold text-base mb-4">{phase.title}</p>
-              <p className="text-white/75 text-sm leading-[1.9rem] whitespace-pre-wrap">{phase.content}</p>
+              <p className="text-white font-bold text-sm mb-4">{phase.title}</p>
+              <p className="text-white/80 text-sm leading-relaxed">
+                {phase.chunks[phase.chunkIndex].chunkText}
+              </p>
             </div>
 
             <div className="bg-[#1a1a1a] rounded-xl px-4 py-3">
               <p className="text-white/50 text-xs">
-                Read carefully. After clicking <span className="text-white font-bold">Finished Reading</span>, {phase.totalBlanks} words will disappear — type them from memory.
-                {phase.disappears && <span className="text-orange-400 font-bold"> The full text will also disappear.</span>}
+                Read carefully. After clicking <span className="text-white font-bold">Finished Reading</span>,{' '}
+                {phase.chunks[phase.chunkIndex].totalBlanks} word{phase.chunks[phase.chunkIndex].totalBlanks !== 1 ? 's' : ''} will become blank inputs.
               </p>
             </div>
 
@@ -519,42 +570,43 @@ export default function RecallPage() {
 
         {/* ── FILLING ── */}
         {phase.type === 'filling' && (() => {
-          const { tokens, userAnswers, totalBlanks, textGone, title, mode, multiplier, blankStatuses, answers } = phase;
+          const chunk = phase.chunks[phase.chunkIndex];
+          const { tokens, answers } = chunk;
+          const { userAnswers, blankStatuses, totalChunks, chunkIndex, multiplier, mode } = phase;
           const filledCount = userAnswers.filter(a => a.trim() !== '').length;
+          const isLastChunk = chunkIndex === totalChunks - 1;
 
           return (
             <div className="space-y-4">
               {/* Stats bar */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    mode === 'earning'
-                      ? 'bg-yellow-400/15 text-yellow-400'
-                      : 'bg-purple-500/15 text-purple-400'
+                    mode === 'earning' ? 'bg-yellow-400/15 text-yellow-400' : 'bg-purple-500/15 text-purple-400'
                   }`}>
                     {mode === 'earning' ? `${multiplier}×` : 'Training'}
                   </span>
-                  {textGone && <span className="text-orange-400 text-[10px] font-bold">TEXT HIDDEN</span>}
+                  <ChunkBadge idx={chunkIndex} total={totalChunks} />
                 </div>
-                <p className="text-white/40 text-xs">{filledCount} / {totalBlanks} filled</p>
+                <p className="text-white/40 text-xs">{filledCount} / {chunk.totalBlanks} filled</p>
               </div>
 
               {/* Progress bar */}
-              <div className="w-full h-1.5 bg-white/8 rounded-full">
+              <div className="w-full h-1.5 bg-white/[0.08] rounded-full">
                 <div
                   className="h-full bg-yellow-400 rounded-full transition-all"
-                  style={{ width: `${(filledCount / totalBlanks) * 100}%` }}
+                  style={{ width: `${chunk.totalBlanks > 0 ? (filledCount / chunk.totalBlanks) * 100 : 0}%` }}
                 />
               </div>
 
-              {/* Inline text with blanks */}
-              <div className="bg-[#111111] rounded-2xl p-6">
-                {!textGone && <p className="text-white font-bold text-sm mb-4">{title}</p>}
-                <div className="text-white/75 text-sm leading-[2.4rem]">
+              {/* Chunk text with inline blanks */}
+              <div className="bg-[#111111] rounded-2xl p-5">
+                <p className="text-white font-bold text-sm mb-4">
+                  {phase.title} — Chunk {chunkIndex + 1}
+                </p>
+                <div className="text-white/75 text-sm leading-[2.8rem]">
                   {tokens.map((tok, i) => {
-                    if (tok.type === 'space') {
-                      return <span key={i}>{tok.value}</span>;
-                    }
+                    if (tok.type === 'space') return <span key={i}>{tok.value}</span>;
                     if (tok.blank) {
                       const status = blankStatuses[tok.blankIndex];
                       const correct = answers[tok.blankIndex] ?? '';
@@ -593,62 +645,23 @@ export default function RecallPage() {
                         </span>
                       );
                     }
-                    if (textGone) {
-                      return null;
-                    }
                     return <span key={i}>{tok.value}</span>;
                   })}
-                  {textGone && (
-                    <div className="space-y-3 mt-2">
-                      {Array(totalBlanks).fill(null).map((_, blankIdx) => {
-                        const status = blankStatuses[blankIdx];
-                        const correct = answers[blankIdx] ?? '';
-                        const isLocked = status === 'correct' || status === 'wrong';
-                        return (
-                          <div key={blankIdx} className="flex items-start gap-3">
-                            <span className="text-white/25 text-xs w-6 text-right mt-2.5 shrink-0">{blankIdx + 1}.</span>
-                            <div className="flex-1">
-                              {status === 'wrong' && (
-                                <span className="block text-green-400 text-[10px] font-bold mb-0.5">→ {correct}</span>
-                              )}
-                              <input
-                                ref={el => { inputRefs.current[blankIdx] = el; }}
-                                type="text"
-                                value={userAnswers[blankIdx] ?? ''}
-                                onChange={e => !isLocked && updateAnswer(blankIdx, e.target.value)}
-                                onKeyDown={e => {
-                                  if ((e.key === 'Enter' || e.key === 'Tab') && !isLocked) {
-                                    e.preventDefault();
-                                    focusNext(blankIdx);
-                                  }
-                                }}
-                                readOnly={isLocked}
-                                placeholder={isLocked ? undefined : `Word ${blankIdx + 1}`}
-                                className={`w-full border rounded-lg px-3 py-2 font-mono text-sm focus:outline-none placeholder:text-white/15 transition-colors ${
-                                  status === 'correct' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
-                                  status === 'wrong'   ? 'bg-red-500/10 border-red-500/30 text-red-400' :
-                                  'bg-[#1a1a1a] border-white/[0.08] text-yellow-400 focus:border-yellow-400'
-                                }`}
-                                autoComplete="off"
-                                spellCheck={false}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               </div>
 
               <p className="text-white/20 text-xs text-center">Tab or Enter to jump to next blank</p>
 
               <button
-                onClick={submitAnswers}
-                disabled={filledCount < totalBlanks}
-                className="w-full bg-white text-black font-bold py-4 rounded-full text-sm hover:bg-white/90 transition-all disabled:opacity-30"
+                onClick={goToNextChunk}
+                disabled={filledCount < chunk.totalBlanks}
+                className="w-full bg-white text-black font-bold py-4 rounded-full text-sm hover:bg-white/90 transition-all disabled:opacity-30 flex items-center justify-center gap-2"
               >
-                Submit Answers ({filledCount}/{totalBlanks})
+                {isLastChunk ? (
+                  <><Check size={16} /> Submit Answers</>
+                ) : (
+                  <>Next Chunk <ChevronRight size={16} /></>
+                )}
               </button>
             </div>
           );
@@ -665,7 +678,6 @@ export default function RecallPage() {
         {/* ── RESULT ── */}
         {phase.type === 'result' && (
           <div className="space-y-4">
-            {/* Score card */}
             <div className={`rounded-2xl p-8 text-center ${
               phase.won
                 ? 'bg-green-500/10 border border-green-500/20'
@@ -693,7 +705,6 @@ export default function RecallPage() {
               )}
             </div>
 
-            {/* Answer review */}
             <div className="bg-[#111111] rounded-2xl p-5">
               <p className="text-white/40 text-xs uppercase tracking-wider mb-4">Answer Review</p>
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -701,12 +712,8 @@ export default function RecallPage() {
                   const userAns = phase.userAnswers[i] ?? '';
                   const isRight = phase.grades[i] === 1;
                   return (
-                    <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-xl ${
-                      isRight ? 'bg-green-500/10' : 'bg-red-500/10'
-                    }`}>
-                      {isRight
-                        ? <Check size={14} className="text-green-400 shrink-0" />
-                        : <X size={14} className="text-red-400 shrink-0" />}
+                    <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-xl ${isRight ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                      {isRight ? <Check size={14} className="text-green-400 shrink-0" /> : <X size={14} className="text-red-400 shrink-0" />}
                       <span className="text-white/30 text-[10px] w-5 shrink-0">{i + 1}</span>
                       <span className={`font-mono text-sm font-bold ${isRight ? 'text-green-400' : 'text-red-400'}`}>
                         {userAns || '—'}

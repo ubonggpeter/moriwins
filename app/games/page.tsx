@@ -24,7 +24,7 @@ export default function GamesPage() {
 
   return (
     <div className="min-h-screen bg-black pb-28 md:pb-10 md:pt-14">
-      <div className="max-w-lg md:max-w-4xl mx-auto px-5 md:px-8">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
         <div className="flex items-center gap-3 pt-10 md:pt-8 pb-6">
