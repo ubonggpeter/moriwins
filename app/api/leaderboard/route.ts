@@ -8,10 +8,10 @@ export async function GET() {
     const min = parseInt(minRaw, 10) || 0;
 
     const gameEarners = await sql`
-      SELECT username, avatar_url, balance AS earnings
+      SELECT username, avatar_url, total_game_winnings AS earnings
       FROM users
-      WHERE balance >= ${min}
-      ORDER BY balance DESC
+      WHERE total_game_winnings >= ${min}
+      ORDER BY total_game_winnings DESC
       LIMIT 10
     `;
     const referralEarners = await sql`
