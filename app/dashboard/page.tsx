@@ -195,33 +195,19 @@ export default function DashboardPage() {
             {/* Game cards */}
             <p className="text-white/30 text-xs tracking-widest uppercase mb-3">Play Now</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-              {GAMES.map(g => {
-                const isMuted = mutedGames[g.title.toLowerCase()];
-                const inner = (
-                  <>
-                    <span className="text-3xl">{g.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <p className={`font-bold text-sm ${isMuted ? 'text-white/40' : 'text-white'}`}>{g.title}</p>
-                        {isMuted
-                          ? <span className="text-[9px] tracking-wider text-orange-400">MAINTENANCE</span>
-                          : <span className={`text-[9px] tracking-wider ${g.tagColor}`}>{g.tag}</span>}
-                      </div>
-                      <p className="text-white/35 text-xs truncate">{g.desc}</p>
+              {GAMES.filter(g => !mutedGames[g.title.toLowerCase()]).map(g => (
+                <Link key={g.title} href={g.href} className="bg-[#111111] rounded-2xl p-5 flex items-center gap-4 group">
+                  <span className="text-3xl">{g.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-white font-bold text-sm">{g.title}</p>
+                      <span className={`text-[9px] tracking-wider ${g.tagColor}`}>{g.tag}</span>
                     </div>
-                    {isMuted ? (
-                      <div className="bg-white/10 text-white/30 font-bold text-xs px-4 py-2 rounded-full shrink-0">N/A</div>
-                    ) : (
-                      <div className="bg-white text-black font-bold text-xs px-4 py-2 rounded-full shrink-0">Play</div>
-                    )}
-                  </>
-                );
-                return isMuted ? (
-                  <div key={g.title} className="bg-[#111111] rounded-2xl p-5 flex items-center gap-4 opacity-60">{inner}</div>
-                ) : (
-                  <Link key={g.title} href={g.href} className="bg-[#111111] rounded-2xl p-5 flex items-center gap-4 group">{inner}</Link>
-                );
-              })}
+                    <p className="text-white/35 text-xs truncate">{g.desc}</p>
+                  </div>
+                  <div className="bg-white text-black font-bold text-xs px-4 py-2 rounded-full shrink-0">Play</div>
+                </Link>
+              ))}
             </div>
 
             {/* Leaderboard (mobile only — desktop shows it in right column) */}

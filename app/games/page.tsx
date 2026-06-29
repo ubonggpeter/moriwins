@@ -62,46 +62,25 @@ export default function GamesPage() {
 
         {/* Game cards — 1 col mobile, 2 col desktop */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {GAMES.map(g => {
-            const isMuted = muted[g.key];
-            const cardClass = `block bg-[#111111] rounded-2xl p-5 md:p-6 ${isMuted ? 'opacity-60' : ''}`;
-
-            const inner = (
-              <>
-                <div className="flex items-start justify-between mb-4">
-                  <span className="text-4xl md:text-5xl">{g.icon}</span>
-                  <div className="flex items-center gap-2">
-                    {isMuted ? (
-                      <span className="text-[10px] tracking-wider text-orange-400">MAINTENANCE</span>
-                    ) : (
-                      <span className={`text-[10px] tracking-wider ${g.tagColor}`}>{g.tag}</span>
-                    )}
-                    <span className="text-[10px] text-white/25 border border-white/10 px-2 py-0.5 rounded-full">
-                      {g.rtp}
-                    </span>
-                  </div>
+          {GAMES.filter(g => !muted[g.key]).map(g => (
+            <Link key={g.key} href={g.href} className="block bg-[#111111] rounded-2xl p-5 md:p-6">
+              <div className="flex items-start justify-between mb-4">
+                <span className="text-4xl md:text-5xl">{g.icon}</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] tracking-wider ${g.tagColor}`}>{g.tag}</span>
+                  <span className="text-[10px] text-white/25 border border-white/10 px-2 py-0.5 rounded-full">
+                    {g.rtp}
+                  </span>
                 </div>
-                <p className="text-white font-bold text-base md:text-lg mb-1">{g.title}</p>
-                <p className="text-white/35 text-xs mb-1">{g.subtitle}</p>
-                <p className="text-white/30 text-xs leading-relaxed mb-4">{g.desc}</p>
-                {isMuted ? (
-                  <div className="bg-white/10 text-white/40 font-bold text-sm py-3 rounded-full text-center cursor-not-allowed">
-                    Unavailable
-                  </div>
-                ) : (
-                  <div className="bg-white text-black font-bold text-sm py-3 rounded-full text-center">
-                    Play {g.title}
-                  </div>
-                )}
-              </>
-            );
-
-            return isMuted ? (
-              <div key={g.key} className={cardClass}>{inner}</div>
-            ) : (
-              <Link key={g.key} href={g.href} className={cardClass}>{inner}</Link>
-            );
-          })}
+              </div>
+              <p className="text-white font-bold text-base md:text-lg mb-1">{g.title}</p>
+              <p className="text-white/35 text-xs mb-1">{g.subtitle}</p>
+              <p className="text-white/30 text-xs leading-relaxed mb-4">{g.desc}</p>
+              <div className="bg-white text-black font-bold text-sm py-3 rounded-full text-center">
+                Play {g.title}
+              </div>
+            </Link>
+          ))}
         </div>
 
       </div>
