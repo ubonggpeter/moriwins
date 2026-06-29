@@ -58,7 +58,7 @@ export default function DashboardPage() {
   const initial = user?.username?.[0]?.toUpperCase() ?? '?';
 
   return (
-    <div className="min-h-screen bg-black pb-20 md:pb-10 md:pt-14">
+    <div className="min-h-screen bg-black pb-28 md:pb-10 md:pt-14">
       <div className="max-w-lg md:max-w-4xl mx-auto px-5 md:px-8">
 
         {/* Header */}

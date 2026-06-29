@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Gem, Layers, Brain, Pencil, Upload, Loader2, Check, FileText } from 'lucide-react';
+import { Gem, Layers, Brain, Pencil, Upload, Loader2, Check, FileText, Send, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 
@@ -30,7 +30,7 @@ interface AdminWithdrawal {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games'>('users');
+  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send'>('users');
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -58,6 +58,14 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState({ title: '', textContent: '', difficulty: 'Normal', disappearsAfterReading: false });
   const [editSaving, setEditSaving] = useState(false);
+  const [editUploading, setEditUploading] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [sendEmails, setSendEmails] = useState('');
+  const [sendAmount, setSendAmount] = useState('');
+  const [sendLoading, setSendLoading] = useState(false);
+  interface SendResult { credited: { email: string; username: string; amount: number }[]; notFound: string[]; }
+  const [sendResult, setSendResult] = useState<SendResult | null>(null);
 
   useEffect(() => {
     fetch('/api/user')
@@ -95,19 +103,43 @@ export default function AdminPage() {
   function loadRecallTexts() {
     fetch('/api/admin/recall-texts').then(r => r.json()).then(d => setRecallTexts(d.texts ?? [])).catch(() => {});
   }
-  async function uploadRecallFile(file: File) {
-    setRecallUploading(true);
+  async function uploadRecallFile(file: File, target: 'add' | 'edit' = 'add') {
+    if (target === 'add') setRecallUploading(true);
+    else setEditUploading(true);
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch('/api/games/recall/upload', { method: 'POST', body: fd });
+    const res = await fetch('/api/admin/recall/upload', { method: 'POST', body: fd });
     const data = await res.json();
-    setRecallUploading(false);
+    if (target === 'add') setRecallUploading(false);
+    else setEditUploading(false);
     if (res.ok && data.text) {
-      const title = file.name.replace(/\.[^/.]+$/, '');
-      setNewRecall(p => ({ ...p, title: p.title || title, textContent: data.text }));
+      if (target === 'add') {
+        const title = file.name.replace(/\.[^/.]+$/, '');
+        setNewRecall(p => ({ ...p, title: p.title || title, textContent: data.text }));
+      } else {
+        setEditData(p => ({ ...p, textContent: data.text }));
+      }
     } else {
       alert(data.error ?? 'Failed to extract text');
     }
+  }
+
+  async function sendMoney() {
+    setSendLoading(true);
+    setSendResult(null);
+    const emails = sendEmails
+      .split(/[\n,]+/)
+      .map(e => e.trim())
+      .filter(Boolean);
+    const res = await fetch('/api/admin/send-money', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emails, amount: parseFloat(sendAmount) }),
+    });
+    const data = await res.json();
+    setSendLoading(false);
+    if (res.ok) setSendResult(data);
+    else alert(data.error ?? 'Failed to send money');
   }
   async function addRecallText() {
     if (!newRecall.title.trim() || !newRecall.textContent.trim()) return;
@@ -216,6 +248,7 @@ export default function AdminPage() {
     { key: 'withdrawals' as const, label: 'Withdrawals' },
     { key: 'settings' as const, label: 'Settings' },
     { key: 'games' as const, label: 'Games' },
+    { key: 'send' as const, label: 'Send Money' },
   ];
 
   const pendingCount = withdrawals.filter(w => w.status === 'pending').length;
@@ -651,6 +684,13 @@ export default function AdminPage() {
                       {/* Inline edit form */}
                       {editingId === t.id && (
                         <div className="border-t border-white/[0.06] p-4 space-y-3 bg-[#0d0d0d]">
+                          <input
+                            ref={editFileInputRef}
+                            type="file"
+                            accept=".pdf,.docx"
+                            className="hidden"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadRecallFile(f, 'edit'); e.target.value = ''; }}
+                          />
                           <div>
                             <label className="text-white/30 text-[10px] uppercase tracking-wider block mb-1">Title</label>
                             <input
@@ -661,7 +701,17 @@ export default function AdminPage() {
                             />
                           </div>
                           <div>
-                            <label className="text-white/30 text-[10px] uppercase tracking-wider block mb-1">Text Content</label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-white/30 text-[10px] uppercase tracking-wider">Text Content</label>
+                              <button
+                                onClick={() => editFileInputRef.current?.click()}
+                                disabled={editUploading}
+                                className="flex items-center gap-1 text-[10px] text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
+                              >
+                                {editUploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+                                {editUploading ? 'Extracting...' : 'Upload PDF/DOCX'}
+                              </button>
+                            </div>
                             <textarea
                               value={editData.textContent}
                               onChange={e => setEditData(p => ({ ...p, textContent: e.target.value }))}
@@ -705,6 +755,88 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+        {tab === 'send' && (
+          <div className="space-y-4">
+            <div className="bg-[#111111] rounded-2xl p-6 space-y-5">
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-2">
+                  Email Addresses
+                </label>
+                <textarea
+                  value={sendEmails}
+                  onChange={e => setSendEmails(e.target.value)}
+                  rows={5}
+                  placeholder={"user@gmail.com\nother@gmail.com\nor comma-separated"}
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-white/20 resize-none placeholder:text-white/20"
+                />
+                <p className="text-white/20 text-xs mt-1">One per line or comma-separated. Only existing users are credited.</p>
+              </div>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-2">
+                  Amount to Send ($)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={sendAmount}
+                  onChange={e => setSendAmount(e.target.value)}
+                  placeholder="e.g. 500"
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-white/20"
+                />
+              </div>
+              <button
+                onClick={sendMoney}
+                disabled={sendLoading || !sendEmails.trim() || !sendAmount || Number(sendAmount) <= 0}
+                className="w-full bg-yellow-400 text-black font-bold py-4 rounded-full text-sm hover:bg-yellow-300 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {sendLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                {sendLoading ? 'Sending...' : 'Send Money'}
+              </button>
+            </div>
+
+            {sendResult && (
+              <div className="space-y-3">
+                {sendResult.credited.length > 0 && (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-5">
+                    <p className="text-green-400 font-bold text-sm mb-3 flex items-center gap-2">
+                      <Check size={16} /> {sendResult.credited.length} user{sendResult.credited.length !== 1 ? 's' : ''} credited
+                    </p>
+                    <div className="space-y-2">
+                      {sendResult.credited.map(c => (
+                        <div key={c.email} className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white text-sm font-bold">{c.username}</p>
+                            <p className="text-white/40 text-xs">{c.email}</p>
+                          </div>
+                          <p className="text-green-400 font-mono font-bold text-sm">+${c.amount.toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {sendResult.notFound.length > 0 && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-5">
+                    <p className="text-red-400 font-bold text-sm mb-3 flex items-center gap-2">
+                      <X size={16} /> {sendResult.notFound.length} email{sendResult.notFound.length !== 1 ? 's' : ''} not found
+                    </p>
+                    <div className="space-y-1">
+                      {sendResult.notFound.map(e => (
+                        <p key={e} className="text-white/40 text-xs font-mono">{e}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button
+                  onClick={() => { setSendResult(null); setSendEmails(''); setSendAmount(''); }}
+                  className="w-full bg-[#111111] text-white/60 font-bold py-3 rounded-full text-sm border border-white/[0.08] hover:text-white transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
       <BottomNav />
     </div>
