@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sql, initSchema, getSetting } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     await initSchema();
