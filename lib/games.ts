@@ -25,10 +25,9 @@ export function calcMinesMultiplier(total: number, mines: number, revealed: numb
 }
 
 export function calcMemoryMultiplier(wrongGuesses: number): number {
-  if (wrongGuesses === 0) return 3.0;
-  if (wrongGuesses <= 2) return 2.5;
-  if (wrongGuesses <= 4) return 2.0;
-  if (wrongGuesses <= 6) return 1.5;
+  if (wrongGuesses === 0) return 2.5;
+  if (wrongGuesses <= 2) return 2.0;
+  if (wrongGuesses <= 5) return 1.5;
   if (wrongGuesses <= 8) return 1.2;
   return 0;
 }
