@@ -48,6 +48,10 @@ export async function POST(request: Request) {
   await sql`DELETE FROM memory_games`;
   await sql`DELETE FROM recall_games`;
 
+  // Clear transaction history
+  await sql`DELETE FROM withdrawals`;
+  await sql`DELETE FROM deposits`;
+
   // Clear Learn Hub data (FK order: certificates & purchases before courses)
   await sql`DELETE FROM certificates`;
   await sql`DELETE FROM course_purchases`;

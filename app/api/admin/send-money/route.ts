@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth';
 import { getUserById, sql, initSchema } from '@/lib/db';
 
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     }
 
     await sql`UPDATE users SET balance = balance + ${amt} WHERE id = ${user.id as string}`;
+    await sql`INSERT INTO deposits (id, user_id, amount, note) VALUES (${uuidv4()}, ${user.id as string}, ${amt}, ${'Admin credit'})`;
     credited.push({ email: user.email as string, username: user.username as string, amount: amt });
 
     // Pay referral bonus (50% of credited amount) on the referred user's first credit

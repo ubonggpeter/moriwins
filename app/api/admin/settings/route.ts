@@ -50,10 +50,14 @@ export async function PATCH(request: Request) {
     await setSetting('leaderboard_min_earnings', String(Math.max(0, Math.floor(leaderboardMinEarnings))));
   }
   if (minesStartingLives !== undefined) {
-    await setSetting('mines_starting_lives', String(Math.max(1, Math.min(10, Math.floor(minesStartingLives)))));
+    const v = Math.floor(Number(minesStartingLives));
+    if (!v || v < 1) return NextResponse.json({ error: 'Mines starting lives must be at least 1' }, { status: 400 });
+    await setSetting('mines_starting_lives', String(Math.min(10, v)));
   }
   if (memoryStartingLives !== undefined) {
-    await setSetting('memory_starting_lives', String(Math.max(1, Math.min(10, Math.floor(memoryStartingLives)))));
+    const v = Math.floor(Number(memoryStartingLives));
+    if (!v || v < 1) return NextResponse.json({ error: 'Memory starting lives must be at least 1' }, { status: 400 });
+    await setSetting('memory_starting_lives', String(Math.min(10, v)));
   }
 
   return NextResponse.json({ success: true });

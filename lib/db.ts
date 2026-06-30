@@ -236,6 +236,16 @@ export async function initSchema(): Promise<void> {
     try { await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'balance'`; } catch {}
 
     await sql`
+      CREATE TABLE IF NOT EXISTS deposits (
+        id         UUID        PRIMARY KEY,
+        user_id    UUID        NOT NULL REFERENCES users(id),
+        amount     INTEGER     NOT NULL,
+        note       TEXT        NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
       CREATE TABLE IF NOT EXISTS feature_announcements (
         id          UUID        PRIMARY KEY,
         title       TEXT        NOT NULL,

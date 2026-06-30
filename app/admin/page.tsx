@@ -50,6 +50,7 @@ export default function AdminPage() {
   const [minesStartingLives, setMinesStartingLives] = useState(3);
   const [memoryStartingLives, setMemoryStartingLives] = useState(3);
   const [livesSaved, setLivesSaved] = useState<string | null>(null);
+  const [livesError, setLivesError] = useState<string | null>(null);
 
   interface RecallText { id: string; title: string; text_content: string; difficulty: string; disappears_after_reading: boolean; is_active: boolean; }
   const [recallTexts, setRecallTexts] = useState<RecallText[]>([]);
@@ -129,6 +130,14 @@ export default function AdminPage() {
   const [aLink, setALink] = useState('');
   const [aAdding, setAAdding] = useState(false);
   const [clearingTournaments, setClearingTournaments] = useState(false);
+  const [clearingHistory, setClearingHistory] = useState<'game' | 'transaction' | null>(null);
+
+  interface AdminDeposit {
+    id: string; username: string; email: string; amount: number; note: string; createdAt: string;
+  }
+  const [deposits, setDeposits] = useState<AdminDeposit[]>([]);
+  const [paymentsSort, setPaymentsSort] = useState<'date' | 'amount' | 'status'>('date');
+  const [paymentsSortDir, setPaymentsSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     fetch('/api/user')
@@ -144,6 +153,7 @@ export default function AdminPage() {
         loadTournaments();
         loadCourses();
         loadAnnouncements();
+        loadDeposits();
       })
       .catch(() => router.replace('/dashboard'));
   }, [router]);
@@ -176,6 +186,9 @@ export default function AdminPage() {
   }
   function loadCourses() {
     fetch('/api/admin/courses').then(r => r.json()).then(d => setCourses(d.courses ?? [])).catch(() => {});
+  }
+  function loadDeposits() {
+    fetch('/api/admin/deposits').then(r => r.json()).then(d => setDeposits(d.deposits ?? [])).catch(() => {});
   }
   function loadAnnouncements() {
     fetch('/api/admin/announcements').then(r => r.json()).then(d => setAnnouncements(d.announcements ?? [])).catch(() => {});
@@ -354,13 +367,53 @@ export default function AdminPage() {
 
   async function saveStartingLives(game: 'mines' | 'memory') {
     const lives = game === 'mines' ? minesStartingLives : memoryStartingLives;
-    await fetch('/api/admin/settings', {
+    if (!lives || lives < 1) {
+      setLivesError(`${game === 'mines' ? 'Mines' : 'Memory'} starting lives must be at least 1`);
+      return;
+    }
+    setLivesError(null);
+    const res = await fetch('/api/admin/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(game === 'mines' ? { minesStartingLives: lives } : { memoryStartingLives: lives }),
     });
+    if (!res.ok) {
+      const d = await res.json();
+      setLivesError(d.error ?? 'Failed to save');
+      return;
+    }
     setLivesSaved(game);
     setTimeout(() => setLivesSaved(null), 2000);
+  }
+  async function clearHistory(type: 'game' | 'transaction') {
+    const msg = type === 'game'
+      ? 'Delete ALL game session records (mines, memory, recall)? This cannot be undone.'
+      : 'Delete ALL transaction records (withdrawals and deposit logs)? This cannot be undone.';
+    if (!confirm(msg)) return;
+    setClearingHistory(type);
+    await fetch('/api/admin/clear-history', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type }),
+    });
+    setClearingHistory(null);
+    if (type === 'transaction') { loadWithdrawals(); loadDeposits(); }
+  }
+  function exportPaymentsCSV(rows: { date: string; username: string; email: string; amount: number; type: string; status: string; note: string }[]) {
+    const headers = ['Date', 'Username', 'Email', 'Amount', 'Type', 'Status', 'Note'];
+    const csvRows = [headers.join(','), ...rows.map(r => [
+      `"${new Date(r.date).toLocaleString()}"`,
+      `"${r.username}"`,
+      `"${r.email}"`,
+      r.amount,
+      `"${r.type}"`,
+      `"${r.status}"`,
+      `"${(r.note ?? '').replace(/"/g, '""')}"`,
+    ].join(','))];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `payments-${Date.now()}.csv`; a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function toggleGame(game: string, muted: boolean) {
@@ -606,75 +659,179 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === 'withdrawals' && (
-          <div className="space-y-3">
-            {withdrawals.length === 0 && <p className="text-white/20 text-sm text-center py-8">No withdrawal requests</p>}
-            {withdrawals.map(w => (
-              <div
-                key={w.id}
-                className={`bg-[#111111] rounded-2xl p-5 border-l-4 ${
-                  w.status === 'pending' ? 'border-yellow-500' : w.status === 'approved' ? 'border-green-500' : 'border-red-500'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-white font-bold text-sm">{w.username}</p>
-                      <span
-                        className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                          w.status === 'pending'
-                            ? 'bg-yellow-400/15 text-yellow-400'
-                            : w.status === 'approved'
-                            ? 'bg-green-500/15 text-green-400'
-                            : 'bg-red-500/15 text-red-400'
-                        }`}
-                      >
-                        {w.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 mb-0.5">
-                      <p className="text-yellow-400 font-mono font-black text-xl">${w.amount.toLocaleString()}</p>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${
-                        w.type === 'referral' ? 'bg-blue-500/15 text-blue-400' : 'bg-white/8 text-white/30'
-                      }`}>
-                        {w.type === 'referral' ? 'Referral' : 'Balance'}
-                      </span>
-                    </div>
-                    <p className="text-white/30 text-xs mt-1">
-                      {w.bankName} · {w.accountNumber} · {w.accountName}
-                    </p>
-                    {w.adminNote && <p className="text-white/40 text-xs mt-1 italic">Note: {w.adminNote}</p>}
-                    <p className="text-white/20 text-xs mt-1">{new Date(w.createdAt).toLocaleString()}</p>
-                  </div>
-                  {w.status === 'pending' && (
-                    <div className="flex flex-col gap-2">
-                      <input
-                        placeholder="Admin note (optional)"
-                        value={noteEdit[w.id] ?? ''}
-                        onChange={e => setNoteEdit(prev => ({ ...prev, [w.id]: e.target.value }))}
-                        className="bg-[#1c1c1c] text-white text-xs rounded-xl px-3 py-2 border border-white/[0.08] focus:outline-none w-48"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => processWithdrawal(w.id, 'approve')}
-                          className="flex-1 bg-green-500 text-black font-bold text-xs py-2 rounded-full"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => processWithdrawal(w.id, 'reject')}
-                          className="flex-1 bg-red-500/80 text-white font-bold text-xs py-2 rounded-full"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
+        {tab === 'withdrawals' && (() => {
+          // Build unified payment rows
+          const wRows = withdrawals.map(w => ({
+            id: w.id,
+            date: w.createdAt,
+            username: w.username,
+            email: w.email,
+            amount: w.amount,
+            type: w.type === 'referral' ? 'Withdrawal (Referral)' : 'Withdrawal',
+            status: w.status,
+            note: w.adminNote ?? '',
+            bankName: w.bankName,
+            accountNumber: w.accountNumber,
+            accountName: w.accountName,
+            isWithdrawal: true,
+            withdrawalId: w.id,
+          }));
+          const dRows = deposits.map(d => ({
+            id: d.id,
+            date: d.createdAt,
+            username: d.username,
+            email: d.email,
+            amount: d.amount,
+            type: 'Deposit',
+            status: 'completed',
+            note: d.note,
+            bankName: '',
+            accountNumber: '',
+            accountName: '',
+            isWithdrawal: false,
+            withdrawalId: '',
+          }));
+          const allRows = [...wRows, ...dRows].sort((a, b) => {
+            let cmp = 0;
+            if (paymentsSort === 'date') cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
+            else if (paymentsSort === 'amount') cmp = a.amount - b.amount;
+            else if (paymentsSort === 'status') cmp = a.status.localeCompare(b.status);
+            return paymentsSortDir === 'desc' ? -cmp : cmp;
+          });
+
+          function toggleSort(col: 'date' | 'amount' | 'status') {
+            if (paymentsSort === col) setPaymentsSortDir(d => d === 'asc' ? 'desc' : 'asc');
+            else { setPaymentsSort(col); setPaymentsSortDir('desc'); }
+          }
+          const sortIcon = (col: string) => paymentsSort === col ? (paymentsSortDir === 'desc' ? ' ↓' : ' ↑') : ' ↕';
+
+          const pendingWithdrawals = wRows.filter(r => r.status === 'pending');
+
+          return (
+            <div className="space-y-4">
+              {/* Header row */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-white font-bold text-sm">{allRows.length} records</p>
+                  {pendingWithdrawals.length > 0 && (
+                    <p className="text-yellow-400 text-xs mt-0.5">{pendingWithdrawals.length} pending withdrawal{pendingWithdrawals.length !== 1 ? 's' : ''} need action</p>
                   )}
                 </div>
+                <button
+                  onClick={() => exportPaymentsCSV(allRows.map(r => ({ date: r.date, username: r.username, email: r.email, amount: r.amount, type: r.type, status: r.status, note: r.note })))}
+                  className="bg-green-500/20 text-green-400 border border-green-500/30 font-bold text-xs px-4 py-2 rounded-full hover:bg-green-500/30 transition-colors"
+                >
+                  ↓ Export CSV
+                </button>
               </div>
-            ))}
-          </div>
-        )}
+
+              {allRows.length === 0 && (
+                <p className="text-white/20 text-sm text-center py-12">No payment records yet</p>
+              )}
+
+              {/* Table */}
+              {allRows.length > 0 && (
+                <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
+                  <table className="w-full text-xs border-collapse min-w-[720px]">
+                    <thead>
+                      <tr className="bg-[#1a1a1a] border-b border-white/[0.07]">
+                        {[
+                          { label: 'Date', col: 'date' as const },
+                          { label: 'User', col: null },
+                          { label: 'Amount', col: 'amount' as const },
+                          { label: 'Type', col: null },
+                          { label: 'Status', col: 'status' as const },
+                          { label: 'Bank / Note', col: null },
+                          { label: 'Action', col: null },
+                        ].map(({ label, col }) => (
+                          <th
+                            key={label}
+                            onClick={col ? () => toggleSort(col) : undefined}
+                            className={`text-left px-4 py-3 text-white/40 font-bold tracking-wider uppercase text-[10px] whitespace-nowrap border-r border-white/[0.05] last:border-r-0 ${col ? 'cursor-pointer hover:text-white/70 select-none' : ''}`}
+                          >
+                            {label}{col ? sortIcon(col) : ''}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allRows.map((row, i) => (
+                        <tr key={row.id} className={`border-b border-white/[0.05] last:border-b-0 ${i % 2 === 0 ? 'bg-[#111111]' : 'bg-[#0f0f0f]'}`}>
+                          <td className="px-4 py-3 text-white/40 whitespace-nowrap border-r border-white/[0.04]">
+                            {new Date(row.date).toLocaleDateString()}<br />
+                            <span className="text-white/20">{new Date(row.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </td>
+                          <td className="px-4 py-3 border-r border-white/[0.04]">
+                            <p className="text-white font-bold">{row.username}</p>
+                            <p className="text-white/30">{row.email}</p>
+                          </td>
+                          <td className="px-4 py-3 font-mono font-black border-r border-white/[0.04]">
+                            <span className={row.type === 'Deposit' ? 'text-green-400' : 'text-yellow-400'}>
+                              {row.type === 'Deposit' ? '+' : '-'}${row.amount.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 border-r border-white/[0.04]">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              row.type === 'Deposit' ? 'bg-green-500/15 text-green-400' :
+                              row.type.includes('Referral') ? 'bg-blue-500/15 text-blue-400' :
+                              'bg-yellow-400/10 text-yellow-400'
+                            }`}>
+                              {row.type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 border-r border-white/[0.04]">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                              row.status === 'approved' || row.status === 'completed' ? 'bg-green-500/15 text-green-400' :
+                              row.status === 'pending' ? 'bg-yellow-400/15 text-yellow-400' :
+                              'bg-red-500/15 text-red-400'
+                            }`}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-white/30 border-r border-white/[0.04] max-w-[160px]">
+                            {row.bankName ? (
+                              <span>{row.bankName} ····{row.accountNumber.slice(-4)}<br />{row.accountName}</span>
+                            ) : row.note ? (
+                              <span className="italic">{row.note}</span>
+                            ) : <span className="text-white/15">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.isWithdrawal && row.status === 'pending' ? (
+                              <div className="flex flex-col gap-1.5">
+                                <input
+                                  placeholder="Note (opt.)"
+                                  value={noteEdit[row.withdrawalId] ?? ''}
+                                  onChange={e => setNoteEdit(prev => ({ ...prev, [row.withdrawalId]: e.target.value }))}
+                                  className="bg-[#1c1c1c] text-white text-[10px] rounded-lg px-2 py-1 border border-white/[0.08] focus:outline-none w-28"
+                                />
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => processWithdrawal(row.withdrawalId, 'approve')}
+                                    className="flex-1 bg-green-500 text-black font-bold text-[10px] py-1.5 rounded-full"
+                                  >
+                                    ✓ OK
+                                  </button>
+                                  <button
+                                    onClick={() => processWithdrawal(row.withdrawalId, 'reject')}
+                                    className="flex-1 bg-red-500/70 text-white font-bold text-[10px] py-1.5 rounded-full"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-white/15 text-[10px]">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {tab === 'settings' && (
           <div className="bg-[#111111] rounded-2xl p-6 space-y-6">
@@ -734,7 +891,33 @@ export default function AdminPage() {
             {/* Danger Zone */}
             <div className="border border-red-500/25 rounded-2xl p-5 space-y-4 mt-2">
               <div>
-                <p className="text-red-400 font-bold text-sm mb-1">Danger Zone — Reset Platform</p>
+                <p className="text-red-400 font-bold text-sm mb-1">Danger Zone</p>
+              </div>
+
+              {/* Selective clear buttons */}
+              <div className="space-y-2">
+                <p className="text-white/30 text-xs">Clear specific history without a full platform reset:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => clearHistory('game')}
+                    disabled={clearingHistory !== null}
+                    className="bg-red-500/10 border border-red-500/20 text-red-400 font-bold text-xs py-2.5 px-3 rounded-xl hover:bg-red-500/20 transition-colors disabled:opacity-40"
+                  >
+                    {clearingHistory === 'game' ? 'Clearing…' : 'Clear Game History'}
+                  </button>
+                  <button
+                    onClick={() => clearHistory('transaction')}
+                    disabled={clearingHistory !== null}
+                    className="bg-red-500/10 border border-red-500/20 text-red-400 font-bold text-xs py-2.5 px-3 rounded-xl hover:bg-red-500/20 transition-colors disabled:opacity-40"
+                  >
+                    {clearingHistory === 'transaction' ? 'Clearing…' : 'Clear Transaction History'}
+                  </button>
+                </div>
+                <p className="text-white/15 text-[10px]">Game history: mines, memory, recall sessions. Transaction history: all withdrawals and deposit records.</p>
+              </div>
+
+              <div className="border-t border-red-500/10 pt-4">
+                <p className="text-red-400 font-bold text-xs mb-1">Full Platform Reset</p>
                 <p className="text-white/30 text-xs leading-relaxed">
                   This will reset ALL user balances, game winnings, and referral earnings to zero, and clear all game history. User accounts, usernames, and passwords are NOT deleted.
                 </p>
@@ -826,35 +1009,46 @@ export default function AdminPage() {
             {/* Starting Lives */}
             <div className="space-y-3">
               <p className="text-white/40 text-xs uppercase tracking-wider">Starting Lives</p>
+              {livesError && (
+                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2">{livesError}</p>
+              )}
               {[
                 { key: 'mines' as const, label: 'Mines', desc: 'Lives per game', value: minesStartingLives, set: setMinesStartingLives },
                 { key: 'memory' as const, label: 'Memory', desc: 'Lives per round', value: memoryStartingLives, set: setMemoryStartingLives },
-              ].map(g => (
-                <div key={g.key} className="bg-[#111111] rounded-2xl p-4 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-white font-bold text-sm">{g.label}</p>
-                    <p className="text-white/30 text-xs">{g.desc}</p>
+              ].map(g => {
+                const isInvalid = !g.value || g.value < 1;
+                return (
+                  <div key={g.key} className="bg-[#111111] rounded-2xl p-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-white font-bold text-sm">{g.label}</p>
+                      <p className="text-white/30 text-xs">{g.desc} · min 1, max 10</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={g.value}
+                        onChange={e => {
+                          setLivesError(null);
+                          const v = parseInt(e.target.value);
+                          g.set(isNaN(v) ? 1 : Math.min(10, v));
+                        }}
+                        className={`w-16 bg-[#1c1c1c] text-white text-sm font-mono text-center rounded-xl px-2 py-2 border focus:outline-none ${isInvalid ? 'border-red-500/60' : 'border-white/[0.08]'}`}
+                      />
+                      <button
+                        onClick={() => saveStartingLives(g.key)}
+                        disabled={isInvalid}
+                        className={`font-bold text-xs px-4 py-2 rounded-full transition-colors ${
+                          livesSaved === g.key ? 'bg-green-500 text-black' : 'bg-white text-black hover:bg-gray-100 disabled:opacity-30'
+                        }`}
+                      >
+                        {livesSaved === g.key ? '✓' : 'Save'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={10}
-                      value={g.value}
-                      onChange={e => g.set(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                      className="w-16 bg-[#1c1c1c] text-white text-sm font-mono text-center rounded-xl px-2 py-2 border border-white/[0.08] focus:outline-none"
-                    />
-                    <button
-                      onClick={() => saveStartingLives(g.key)}
-                      className={`font-bold text-xs px-4 py-2 rounded-full transition-colors ${
-                        livesSaved === g.key ? 'bg-green-500 text-black' : 'bg-white text-black hover:bg-gray-100'
-                      }`}
-                    >
-                      {livesSaved === g.key ? '✓' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Recall Texts management */}
