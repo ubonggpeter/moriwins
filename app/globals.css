@@ -58,3 +58,44 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: #000; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+/* Balance card animated gradient */
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes card-shine {
+  0%   { transform: translateX(-120%) skewX(-20deg); }
+  100% { transform: translateX(220%) skewX(-20deg); }
+}
+
+.balance-card-bg {
+  background: linear-gradient(
+    135deg,
+    #1a1200 0%,
+    #2d1f00 15%,
+    #1a1000 30%,
+    #0f0800 45%,
+    #2a1800 60%,
+    #3d2800 75%,
+    #1a1200 90%,
+    #0a0800 100%
+  );
+  background-size: 300% 300%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+.balance-card-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 210, 80, 0.08) 50%,
+    transparent 60%
+  );
+  animation: card-shine 4s ease-in-out infinite;
+}
