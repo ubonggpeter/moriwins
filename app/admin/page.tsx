@@ -31,6 +31,28 @@ interface AdminWithdrawal {
   createdAt: string;
 }
 
+function compressThumb(file: File): Promise<File> {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX_W = 1280;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > MAX_W) { h = Math.round((h * MAX_W) / w); w = MAX_W; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(
+        blob => resolve(new File([blob!], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' })),
+        'image/jpeg', 0.8
+      );
+    };
+    img.src = url;
+  });
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn' | 'announce' | 'subadmins' | 'notify'>('users');
@@ -116,6 +138,9 @@ export default function AdminPage() {
   const [cThumbMode, setCThumbMode] = useState<'url' | 'upload'>('url');
   const [cVideoUploading, setCVideoUploading] = useState(false);
   const [cThumbUploading, setCThumbUploading] = useState(false);
+  const [cVideoProgress, setCVideoProgress] = useState<{ loaded: number; total: number; pct: number } | null>(null);
+  const [cThumbProgress, setCThumbProgress] = useState<{ loaded: number; total: number; pct: number } | null>(null);
+  const [cThumbCompressing, setCThumbCompressing] = useState(false);
   const [cCreating, setCCreating] = useState(false);
   const [managingCourse, setManagingCourse] = useState<AdminCourse | null>(null);
   const [courseQuestions, setCourseQuestions] = useState<CourseQuestion[]>([]);
@@ -232,16 +257,31 @@ export default function AdminPage() {
   function loadSubAdmins() {
     fetch('/api/admin/sub-admins').then(r => r.json()).then(d => setSubAdmins(d.subAdmins ?? [])).catch(() => {});
   }
-  async function uploadCourseMedia(file: File, type: 'video' | 'thumbnail'): Promise<string | null> {
-    const ext = file.name.split('.').pop() ?? (type === 'video' ? 'mp4' : 'jpg');
+  async function uploadCourseMedia(
+    file: File,
+    type: 'video' | 'thumbnail',
+    onProgress: (loaded: number, total: number, pct: number) => void,
+  ): Promise<string | null> {
+    let fileToUpload = file;
+    if (type === 'thumbnail') {
+      setCThumbCompressing(true);
+      fileToUpload = await compressThumb(file);
+      setCThumbCompressing(false);
+    }
+    const ext = type === 'video' ? (file.name.split('.').pop() ?? 'mp4') : 'jpg';
     const prefix = type === 'video' ? 'courses/videos' : 'courses/thumbnails';
     const pathname = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    // Seed progress at 0 so bar appears immediately
+    onProgress(0, fileToUpload.size, 0);
     try {
-      const blob = await upload(pathname, file, {
+      const blob = await upload(pathname, fileToUpload, {
         access: 'public',
         handleUploadUrl: '/api/admin/courses/upload-media',
-        contentType: file.type,
-        multipart: type === 'video', // split large video files into parallel chunks
+        contentType: fileToUpload.type,
+        multipart: type === 'video',
+        onUploadProgress: ({ loaded, total, percentage }) => {
+          onProgress(loaded, total ?? fileToUpload.size, percentage);
+        },
       });
       return blob.url;
     } catch (err) {
@@ -1733,20 +1773,43 @@ export default function AdminPage() {
                     placeholder="https://youtube.com/watch?v=... or direct .mp4 URL"
                     className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20" />
                 ) : (
-                  <div className="relative">
+                  <div>
                     <input type="file" accept="video/mp4,video/quicktime,video/webm"
                       onChange={async e => {
                         const f = e.target.files?.[0];
                         if (!f) return;
                         setCVideoUploading(true);
-                        const url = await uploadCourseMedia(f, 'video');
+                        setCVideoProgress({ loaded: 0, total: f.size, pct: 0 });
+                        const url = await uploadCourseMedia(f, 'video', (loaded, total, pct) => {
+                          setCVideoProgress({ loaded, total, pct });
+                        });
                         if (url) setCVideoUrl(url);
                         setCVideoUploading(false);
+                        setCVideoProgress(null);
                         e.target.value = '';
                       }}
                       className="w-full text-white/50 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20"
                     />
-                    {cVideoUploading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-400 animate-spin" />}
+                    {cVideoUploading && cVideoProgress && (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-yellow-400 text-xs font-bold tabular-nums">
+                            {cVideoProgress.pct < 1 ? 'Connecting…' : `${Math.round(cVideoProgress.pct)}%`}
+                          </span>
+                          <span className="text-white/30 text-xs tabular-nums">
+                            {(cVideoProgress.loaded / 1048576).toFixed(1)} MB
+                            {' / '}
+                            {(cVideoProgress.total / 1048576).toFixed(1)} MB
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-white/[0.07] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-yellow-400 rounded-full transition-all duration-150"
+                            style={{ width: `${cVideoProgress.pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                     {cVideoUrl && !cVideoUploading && <p className="text-green-400 text-xs mt-1 truncate">✓ {cVideoUrl}</p>}
                   </div>
                 )}
@@ -1768,20 +1831,55 @@ export default function AdminPage() {
                     placeholder="https://example.com/image.jpg"
                     className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20" />
                 ) : (
-                  <div className="relative">
+                  <div>
                     <input type="file" accept="image/jpeg,image/png,image/webp,image/gif"
                       onChange={async e => {
                         const f = e.target.files?.[0];
                         if (!f) return;
                         setCThumbUploading(true);
-                        const url = await uploadCourseMedia(f, 'thumbnail');
+                        setCThumbProgress(null);
+                        const url = await uploadCourseMedia(f, 'thumbnail', (loaded, total, pct) => {
+                          setCThumbProgress({ loaded, total, pct });
+                        });
                         if (url) setCThumbUrl(url);
                         setCThumbUploading(false);
+                        setCThumbCompressing(false);
+                        setCThumbProgress(null);
                         e.target.value = '';
                       }}
                       className="w-full text-white/50 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20"
                     />
-                    {cThumbUploading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-400 animate-spin" />}
+                    {cThumbUploading && (
+                      <div className="mt-2 space-y-1.5">
+                        {cThumbCompressing || !cThumbProgress ? (
+                          <div className="flex items-center gap-2">
+                            <Loader2 size={12} className="text-yellow-400 animate-spin" />
+                            <span className="text-yellow-400 text-xs">
+                              {cThumbCompressing ? 'Compressing…' : 'Preparing…'}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <span className="text-yellow-400 text-xs font-bold tabular-nums">
+                                {cThumbProgress.pct < 1 ? 'Uploading…' : `${Math.round(cThumbProgress.pct)}%`}
+                              </span>
+                              <span className="text-white/30 text-xs tabular-nums">
+                                {(cThumbProgress.loaded / 1024).toFixed(0)} KB
+                                {' / '}
+                                {(cThumbProgress.total / 1024).toFixed(0)} KB
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-white/[0.07] rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-yellow-400 rounded-full transition-all duration-150"
+                                style={{ width: `${cThumbProgress.pct}%` }}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {cThumbUrl && !cThumbUploading && (
                       <div className="mt-2 flex items-center gap-2">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
