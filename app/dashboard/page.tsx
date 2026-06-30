@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Gem, Layers, Brain, X, Menu, ExternalLink } from 'lucide-react';
+import { Gem, Layers, Brain, X, Menu, ExternalLink, Bell } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import Leaderboard from '@/components/Leaderboard';
 
@@ -30,6 +30,15 @@ interface Announcement {
   created_at: string;
 }
 
+interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 const GAMES = [
   { key: 'mines',  title: 'Mines',       desc: 'Reveal cells and avoid mines',          Icon: Gem,    href: '/games/mines',  tag: 'HIGH RISK', tagColor: 'text-red-400' },
   { key: 'memory', title: 'Memory',      desc: 'Match all pairs to win',                Icon: Layers, href: '/games/memory', tag: 'SKILL',     tagColor: 'text-blue-400' },
@@ -43,13 +52,34 @@ export default function DashboardPage() {
   const [mutedGames, setMutedGames] = useState<Record<string, boolean>>({});
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     fetch('/api/user').then(r => r.json()).then(d => { if (d.username) setUser(d); }).catch(() => {});
     fetch('/api/referral').then(r => r.json()).then(d => { if (d.referralCode) setReferral(d); }).catch(() => {});
     fetch('/api/games/status').then(r => r.json()).then(d => setMutedGames({ mines: !!d.mines?.muted, memory: !!d.memory?.muted, recall: !!d.recall?.muted })).catch(() => {});
     fetch('/api/announcements').then(r => r.json()).then(d => setAnnouncements(d.announcements ?? [])).catch(() => {});
+    fetch('/api/notifications').then(r => r.json()).then(d => {
+      setNotifications(d.notifications ?? []);
+      setUnreadCount(d.unreadCount ?? 0);
+    }).catch(() => {});
   }, []);
+
+  async function openNotifications() {
+    setNotifOpen(true);
+    if (unreadCount > 0) {
+      await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'read-all' }) });
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    }
+  }
+
+  async function deleteNotification(id: string) {
+    await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }
 
   function copyReferralLink() {
     if (!referral) return;
@@ -87,7 +117,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Right: admin badge + avatar */}
+            {/* Right: admin badge + bell + avatar */}
             <div className="flex items-center gap-2">
               {(user?.isAdmin === true || user?.isSubAdmin === true) && (
                 <Link
@@ -97,6 +127,17 @@ export default function DashboardPage() {
                   {user?.isAdmin ? 'ADMIN' : 'SUB-ADMIN'}
                 </Link>
               )}
+              <button
+                onClick={openNotifications}
+                className="relative w-9 h-9 rounded-full bg-[#1c1c1c] border border-white/[0.08] flex items-center justify-center text-white/60 hover:text-white hover:bg-[#222] transition-colors"
+              >
+                <Bell size={16} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-yellow-400 rounded-full flex items-center justify-center text-black text-[9px] font-black">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
               <div className="w-9 h-9 rounded-full bg-[#1c1c1c] border border-white/10 overflow-hidden flex items-center justify-center">
                 {user?.avatarUrl
                   ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" /> /* eslint-disable-line @next/next/no-img-element */
@@ -164,6 +205,85 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))
+          )}
+        </div>
+
+        <div className="px-4 pb-8 pt-3 border-t border-white/[0.07]">
+          <p className="text-white/15 text-[10px] text-center">MoriWins Platform</p>
+        </div>
+      </aside>
+
+      {/* ── Notification panel overlay ────────────────────── */}
+      {notifOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40"
+          onClick={() => setNotifOpen(false)}
+        />
+      )}
+
+      {/* ── Notification slide-in (from right) ────────────── */}
+      <aside
+        className={`fixed top-0 right-0 h-full w-[320px] max-w-[88vw] bg-[#0e0e0e] border-l border-white/[0.07] z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+          notifOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between px-5 pt-12 pb-4 border-b border-white/[0.07]">
+          <div>
+            <p className="text-white font-black text-base">Notifications</p>
+            <p className="text-white/30 text-xs mt-0.5">{notifications.length} total</p>
+          </div>
+          <button
+            onClick={() => setNotifOpen(false)}
+            className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+          {notifications.length === 0 ? (
+            <div className="text-center py-16">
+              <Bell size={32} className="text-white/10 mx-auto mb-3" />
+              <p className="text-white/20 text-sm">No notifications yet</p>
+            </div>
+          ) : (
+            notifications.map(n => {
+              const accent =
+                n.type === 'success' ? 'text-green-400' :
+                n.type === 'warning' ? 'text-yellow-400' :
+                n.type === 'error'   ? 'text-red-400'   : 'text-blue-400';
+              const dot =
+                n.type === 'success' ? 'bg-green-400' :
+                n.type === 'warning' ? 'bg-yellow-400' :
+                n.type === 'error'   ? 'bg-red-400'   : 'bg-blue-400';
+              return (
+                <div
+                  key={n.id}
+                  className={`rounded-2xl p-4 ${n.isRead ? 'bg-[#141414]' : 'bg-[#1a1a1a] border border-white/[0.07]'}`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${dot} ${n.isRead ? 'opacity-30' : ''}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className={`text-sm font-bold leading-snug ${n.isRead ? 'text-white/60' : 'text-white'}`}>{n.title}</p>
+                        <button
+                          onClick={() => deleteNotification(n.id)}
+                          className="text-white/20 hover:text-white/50 transition-colors shrink-0 mt-0.5"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      {n.body && (
+                        <p className={`text-xs leading-relaxed mt-1 ${n.isRead ? 'text-white/30' : 'text-white/50'}`}>{n.body}</p>
+                      )}
+                      <p className={`text-[10px] mt-2 ${accent} opacity-60`}>
+                        {new Date(n.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
 

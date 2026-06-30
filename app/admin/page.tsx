@@ -32,7 +32,7 @@ interface AdminWithdrawal {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn' | 'announce' | 'subadmins'>('users');
+  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn' | 'announce' | 'subadmins' | 'notify'>('users');
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [currentUser, setCurrentUser] = useState<{ isAdmin: boolean; isSubAdmin: boolean; permissions: Record<string, boolean> } | null>(null);
 
@@ -141,6 +141,16 @@ export default function AdminPage() {
   const [saLoading, setSaLoading] = useState(false);
   const [saMsg, setSaMsg] = useState('');
 
+  // Notifications
+  const [nTitle, setNTitle] = useState('');
+  const [nBody, setNBody] = useState('');
+  const [nType, setNType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
+  const [nTarget, setNTarget] = useState<'all' | 'user'>('all');
+  const [nEmail, setNEmail] = useState('');
+  const [nSending, setNSending] = useState(false);
+  const [nMsg, setNMsg] = useState('');
+  const [nOk, setNOk] = useState(false);
+
   const SUB_ADMIN_PERMS = [
     { key: 'manageUsers', label: 'Manage Users' },
     { key: 'manageWithdrawals', label: 'Withdrawals' },
@@ -150,6 +160,7 @@ export default function AdminPage() {
     { key: 'manageTournaments', label: 'Tournaments' },
     { key: 'manageCourses', label: 'Learn Hub' },
     { key: 'manageAnnouncements', label: 'Announcements' },
+    { key: 'sendNotifications', label: 'Notifications' },
   ];
   const [clearingHistory, setClearingHistory] = useState<'game' | 'transaction' | null>(null);
 
@@ -244,6 +255,35 @@ export default function AdminPage() {
       const d = await res.json(); alert(d.error ?? 'Failed');
     }
   }
+  async function sendNotification() {
+    if (!nTitle.trim()) { setNMsg('Title is required'); setNOk(false); return; }
+    setNSending(true);
+    setNMsg('');
+    try {
+      const res = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: nTitle, body: nBody, type: nType, target: nTarget, email: nEmail }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNOk(true);
+        setNMsg(nTarget === 'all' ? `Sent to ${data.sent} users` : 'Notification sent');
+        setNTitle('');
+        setNBody('');
+        setNEmail('');
+      } else {
+        setNOk(false);
+        setNMsg(data.error ?? 'Failed to send');
+      }
+    } catch {
+      setNOk(false);
+      setNMsg('Network error');
+    } finally {
+      setNSending(false);
+    }
+  }
+
   async function saveSubAdmin(grantOrRevoke: boolean) {
     if (!saEmail.trim()) { setSaMsg('Enter an email address'); return; }
     setSaLoading(true);
@@ -596,6 +636,7 @@ export default function AdminPage() {
     { key: 'tournaments' as const, label: 'Tournaments' },
     { key: 'learn' as const, label: 'Learn Hub' },
     { key: 'announce' as const, label: 'Announcements' },
+    { key: 'notify' as const, label: 'Notify' },
     ...(currentUser?.isAdmin ? [{ key: 'subadmins' as const, label: 'Sub-Admins' }] : []),
   ];
 
@@ -607,7 +648,7 @@ export default function AdminPage() {
         const map: Record<string, string> = {
           users: 'manageUsers', withdrawals: 'manageWithdrawals', settings: 'manageSettings',
           games: 'manageGames', send: 'sendMoney', tournaments: 'manageTournaments',
-          learn: 'manageCourses', announce: 'manageAnnouncements',
+          learn: 'manageCourses', announce: 'manageAnnouncements', notify: 'sendNotifications',
         };
         return p[map[t.key]];
       });
@@ -1953,6 +1994,105 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'notify' && (
+          <div className="space-y-4">
+            <div className="bg-[#111111] rounded-2xl p-5">
+              <p className="text-white font-bold text-sm mb-4">Send Notification</p>
+              <div className="space-y-3">
+                {/* Target */}
+                <div>
+                  <p className="text-white/40 text-xs uppercase tracking-wider mb-2">Send To</p>
+                  <div className="flex gap-2">
+                    {(['all', 'user'] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setNTarget(t)}
+                        className={`flex-1 py-2.5 rounded-full text-sm font-bold transition-colors ${nTarget === t ? 'bg-white text-black' : 'bg-white/[0.06] text-white/40 hover:text-white/70'}`}
+                      >
+                        {t === 'all' ? 'All Users' : 'Specific User'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {nTarget === 'user' && (
+                  <div>
+                    <label className="text-white/40 text-xs uppercase tracking-wider block mb-1.5">User Email</label>
+                    <input
+                      type="email"
+                      value={nEmail}
+                      onChange={e => setNEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-white/20 placeholder:text-white/20"
+                    />
+                  </div>
+                )}
+
+                {/* Type */}
+                <div>
+                  <p className="text-white/40 text-xs uppercase tracking-wider mb-2">Type</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {([
+                      { key: 'info', label: 'Info', color: 'text-blue-400 bg-blue-400/10' },
+                      { key: 'success', label: 'Success', color: 'text-green-400 bg-green-400/10' },
+                      { key: 'warning', label: 'Warning', color: 'text-yellow-400 bg-yellow-400/10' },
+                      { key: 'error', label: 'Alert', color: 'text-red-400 bg-red-400/10' },
+                    ] as const).map(t => (
+                      <button
+                        key={t.key}
+                        onClick={() => setNType(t.key)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${nType === t.key ? t.color + ' ring-1 ring-current ring-opacity-30' : 'text-white/30 bg-white/[0.04] hover:text-white/60'}`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <label className="text-white/40 text-xs uppercase tracking-wider block mb-1.5">Title</label>
+                  <input
+                    type="text"
+                    value={nTitle}
+                    onChange={e => setNTitle(e.target.value)}
+                    placeholder="Notification title"
+                    maxLength={120}
+                    className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-white/20 placeholder:text-white/20"
+                  />
+                </div>
+
+                {/* Body */}
+                <div>
+                  <label className="text-white/40 text-xs uppercase tracking-wider block mb-1.5">Message (optional)</label>
+                  <textarea
+                    value={nBody}
+                    onChange={e => setNBody(e.target.value)}
+                    placeholder="Additional details..."
+                    rows={3}
+                    maxLength={500}
+                    className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-white/20 placeholder:text-white/20 resize-none"
+                  />
+                </div>
+
+                {nMsg && (
+                  <p className={`text-xs px-3 py-2.5 rounded-xl ${nOk ? 'text-green-400 bg-green-500/10 border border-green-500/20' : 'text-red-400 bg-red-500/10 border border-red-500/20'}`}>
+                    {nMsg}
+                  </p>
+                )}
+
+                <button
+                  onClick={sendNotification}
+                  disabled={nSending || !nTitle.trim()}
+                  className="w-full bg-yellow-400 text-black font-bold py-3 rounded-full text-sm hover:bg-yellow-300 transition-colors disabled:opacity-40"
+                >
+                  {nSending ? 'Sending...' : nTarget === 'all' ? 'Send to All Users' : 'Send Notification'}
+                </button>
               </div>
             </div>
           </div>
