@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
 import { getUserById, sql, initSchema } from '@/lib/db';
+import { completeTournament } from '@/lib/tournaments';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,15 @@ export async function GET() {
   await initSchema();
 
   await sql`UPDATE tournaments SET status = 'active' WHERE status = 'upcoming' AND start_time <= NOW()`;
+
+  // Auto-complete active tournaments whose end_time has passed
+  const expired = await sql`
+    SELECT id FROM tournaments
+    WHERE status = 'active' AND end_time IS NOT NULL AND end_time <= NOW()
+  `;
+  for (const t of expired) {
+    try { await completeTournament(t.id as string); } catch (err) { console.error('[tournaments/auto-complete]', err); }
+  }
 
   let userId: string | null = null;
   try {
@@ -24,7 +34,7 @@ export async function GET() {
 
   const tournaments = await sql`
     SELECT
-      t.id, t.game_type, t.entry_bet, t.start_time, t.status, t.created_at,
+      t.id, t.game_type, t.entry_bet, t.start_time, t.end_time, t.status, t.created_at,
       COUNT(te.id)::int                         AS entry_count,
       COALESCE(SUM(te.bet_amount), 0)::int      AS total_pool
     FROM tournaments t

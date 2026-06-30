@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   const admin = await getAdmin();
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { gameType, entryBet, startTime } = await request.json();
+  const { gameType, entryBet, startTime, durationMinutes } = await request.json();
 
   if (!['mines', 'memory', 'recall'].includes(gameType)) {
     return NextResponse.json({ error: 'Invalid game type' }, { status: 400 });
@@ -51,14 +51,19 @@ export async function POST(request: Request) {
   if (!bet || bet <= 0) {
     return NextResponse.json({ error: 'Entry bet must be positive' }, { status: 400 });
   }
+  const dur = Number(durationMinutes);
+  if (!dur || dur <= 0) {
+    return NextResponse.json({ error: 'Duration must be positive' }, { status: 400 });
+  }
 
   const start = startTime ? new Date(startTime) : new Date();
+  const end   = new Date(start.getTime() + dur * 60 * 1000);
   const status = start <= new Date() ? 'active' : 'upcoming';
   const id = uuidv4();
 
   await sql`
-    INSERT INTO tournaments (id, game_type, entry_bet, start_time, status, created_by)
-    VALUES (${id}, ${gameType}, ${bet}, ${start.toISOString()}, ${status}, ${admin.id})
+    INSERT INTO tournaments (id, game_type, entry_bet, start_time, end_time, status, created_by)
+    VALUES (${id}, ${gameType}, ${bet}, ${start.toISOString()}, ${end.toISOString()}, ${status}, ${admin.id})
   `;
 
   const [t] = await sql`SELECT * FROM tournaments WHERE id = ${id}`;

@@ -177,6 +177,7 @@ export async function initSchema(): Promise<void> {
         UNIQUE (tournament_id, user_id)
       )
     `;
+    try { await sql`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS end_time TIMESTAMPTZ`; } catch {}
 
     schemaInitialized = true;
   } catch (err) {

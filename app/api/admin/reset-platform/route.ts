@@ -39,6 +39,10 @@ export async function POST(request: Request) {
     usersReset = result.count;
   }
 
+  // Clear tournament data (entries first due to FK constraint)
+  await sql`DELETE FROM tournament_entries`;
+  await sql`DELETE FROM tournaments`;
+
   // Clear game history tables
   await sql`DELETE FROM mines_games`;
   await sql`DELETE FROM memory_games`;

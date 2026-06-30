@@ -81,6 +81,9 @@ export default function AdminPage() {
   const [tEntryBet, setTEntryBet] = useState('50');
   const [tStartNow, setTStartNow] = useState(true);
   const [tStartTime, setTStartTime] = useState('');
+  const [tDurationMinutes, setTDurationMinutes] = useState(60);
+  const [tDurationCustom, setTDurationCustom] = useState('');
+  const [tDurationUnit, setTDurationUnit] = useState<'minutes' | 'hours' | 'days'>('minutes');
   const [tCreating, setTCreating] = useState(false);
   const [tEnding, setTEnding] = useState<string | null>(null);
   interface EndResult { status: string; totalEntries: number; winnersCount: number; prizePool: number; distributed: number; }
@@ -261,16 +264,25 @@ export default function AdminPage() {
   async function createTournament() {
     setTCreating(true);
     const startTime = tStartNow ? undefined : tStartTime;
+    let dur = tDurationMinutes;
+    if (tDurationCustom) {
+      const n = Number(tDurationCustom);
+      if (tDurationUnit === 'hours') dur = n * 60;
+      else if (tDurationUnit === 'days') dur = n * 60 * 24;
+      else dur = n;
+    }
     const res = await fetch('/api/admin/tournaments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameType: tGameType, entryBet: Number(tEntryBet), startTime }),
+      body: JSON.stringify({ gameType: tGameType, entryBet: Number(tEntryBet), startTime, durationMinutes: dur }),
     });
     setTCreating(false);
     if (res.ok) {
       setTEntryBet('50');
       setTStartNow(true);
       setTStartTime('');
+      setTDurationMinutes(60);
+      setTDurationCustom('');
       loadTournaments();
     } else {
       const d = await res.json();
@@ -1001,6 +1013,40 @@ export default function AdminPage() {
               </div>
 
               <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-2">Duration</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {[{ label: '15m', mins: 15 }, { label: '30m', mins: 30 }, { label: '1h', mins: 60 }, { label: '3h', mins: 180 }, { label: '6h', mins: 360 }, { label: '24h', mins: 1440 }].map(opt => (
+                    <button
+                      key={opt.mins}
+                      onClick={() => { setTDurationMinutes(opt.mins); setTDurationCustom(''); }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${!tDurationCustom && tDurationMinutes === opt.mins ? 'bg-white text-black' : 'bg-[#1c1c1c] text-white/40 border border-white/[0.08]'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="Custom"
+                    value={tDurationCustom}
+                    onChange={e => setTDurationCustom(e.target.value)}
+                    className="flex-1 bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2 text-white text-sm font-mono focus:outline-none"
+                  />
+                  <select
+                    value={tDurationUnit}
+                    onChange={e => setTDurationUnit(e.target.value as 'minutes' | 'hours' | 'days')}
+                    className="bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2 text-white text-sm focus:outline-none"
+                  >
+                    <option value="minutes">minutes</option>
+                    <option value="hours">hours</option>
+                    <option value="days">days</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
                 <label className="text-white/40 text-xs uppercase tracking-wider block mb-2">Start Time</label>
                 <div className="flex gap-2 mb-2">
                   <button
@@ -1028,7 +1074,7 @@ export default function AdminPage() {
 
               <button
                 onClick={createTournament}
-                disabled={tCreating || !tEntryBet || (!tStartNow && !tStartTime)}
+                disabled={tCreating || !tEntryBet || (!tStartNow && !tStartTime) || (!tDurationCustom && !tDurationMinutes)}
                 className="w-full bg-yellow-400 text-black font-bold py-3 rounded-full text-sm hover:bg-yellow-300 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {tCreating ? <Loader2 size={14} className="animate-spin" /> : <Trophy size={14} />}

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trophy, Gem, Layers, Brain, Clock, Users, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -18,14 +18,19 @@ interface Tournament {
   game_type: string;
   entry_bet: number;
   start_time: string;
+  end_time: string | null;
   status: string;
   entry_count: number;
   total_pool: number;
 }
 interface Winner { tournament_id: string; game_type: string; username: string; result_amount: number; }
+interface Standing { username: string; result_amount: number; bet_amount: number; rank: number; }
 
 function useCountdown(target: string) {
   const [secs, setSecs] = useState(() => Math.max(0, Math.floor((new Date(target).getTime() - Date.now()) / 1000)));
+  useEffect(() => {
+    setSecs(Math.max(0, Math.floor((new Date(target).getTime() - Date.now()) / 1000)));
+  }, [target]);
   useEffect(() => {
     if (secs <= 0) return;
     const id = setInterval(() => setSecs(s => Math.max(0, s - 1)), 1000);
@@ -36,7 +41,7 @@ function useCountdown(target: string) {
   const s = secs % 60;
   return secs > 0
     ? `${h > 0 ? `${h}h ` : ''}${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`
-    : 'Starting now';
+    : 'Ending soon';
 }
 
 function CountdownBadge({ startTime }: { startTime: string }) {
@@ -45,6 +50,62 @@ function CountdownBadge({ startTime }: { startTime: string }) {
     <span className="flex items-center gap-1 text-yellow-400 text-xs font-mono font-bold">
       <Clock size={11} /> {label}
     </span>
+  );
+}
+
+function EndCountdownBadge({ endTime }: { endTime: string }) {
+  const label = useCountdown(endTime);
+  return (
+    <span className="flex items-center gap-1 text-orange-400 text-xs font-mono">
+      <Clock size={11} /> Ends in {label}
+    </span>
+  );
+}
+
+function LiveStandings({ tournamentId }: { tournamentId: string }) {
+  const [standings, setStandings] = useState<Standing[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetch_ = useCallback(() => {
+    fetch(`/api/tournaments/${tournamentId}/standings`)
+      .then(r => r.json())
+      .then(d => setStandings(d.standings ?? []))
+      .catch(() => {});
+  }, [tournamentId]);
+
+  useEffect(() => {
+    fetch_();
+    timerRef.current = setInterval(fetch_, 7000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [fetch_]);
+
+  if (standings.length === 0) {
+    return (
+      <div className="mt-4 pt-4 border-t border-white/[0.06]">
+        <p className="text-white/25 text-xs text-center py-2">No players yet — be the first to join and play!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 pt-4 border-t border-white/[0.06]">
+      <p className="text-white/40 text-[10px] uppercase tracking-wider mb-2">Live Standings</p>
+      <div className="space-y-1">
+        {standings.map((s, i) => (
+          <div key={s.username} className="flex items-center gap-2 py-1">
+            <span className={`w-5 text-center text-xs font-black shrink-0 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-white/60' : i === 2 ? 'text-orange-400' : 'text-white/20'}`}>
+              {s.rank}
+            </span>
+            <span className="flex-1 text-white text-xs font-bold truncate">{s.username}</span>
+            {s.result_amount > 0 ? (
+              <span className="text-green-400 font-mono text-xs font-bold shrink-0">${s.result_amount.toLocaleString()}</span>
+            ) : (
+              <span className="text-white/20 font-mono text-xs shrink-0">playing…</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -152,7 +213,10 @@ export default function TournamentsPage() {
                         </span>
                         <div>
                           <p className="text-white font-bold text-sm">{GAME_LABELS[t.game_type]}</p>
-                          <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-bold">LIVE</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-bold">LIVE</span>
+                            {t.end_time && <EndCountdownBadge endTime={t.end_time} />}
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -192,6 +256,8 @@ export default function TournamentsPage() {
                         {joining === t.id ? 'Joining...' : `Join for $${t.entry_bet}`}
                       </button>
                     )}
+
+                    <LiveStandings tournamentId={t.id} />
                   </div>
                 );
               })}
