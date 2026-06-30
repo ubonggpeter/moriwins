@@ -67,6 +67,11 @@ export default function AdminPage() {
   interface SendResult { credited: { email: string; username: string; amount: number }[]; notFound: string[]; }
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
 
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [resetAdminToo, setResetAdminToo] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetResult, setResetResult] = useState<{ usersReset: number; resetAdminToo: boolean } | null>(null);
+
   useEffect(() => {
     fetch('/api/user')
       .then(r => r.json())
@@ -233,6 +238,26 @@ export default function AdminPage() {
     });
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2000);
+  }
+
+  async function resetPlatform() {
+    if (resetConfirm !== 'RESET' || resetLoading) return;
+    setResetLoading(true);
+    setResetResult(null);
+    const res = await fetch('/api/admin/reset-platform', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resetAdminToo }),
+    });
+    const data = await res.json();
+    setResetLoading(false);
+    if (res.ok) {
+      setResetResult(data);
+      setResetConfirm('');
+      loadUsers();
+    } else {
+      alert(data.error ?? 'Reset failed');
+    }
   }
 
   if (authorized === null) {
@@ -476,6 +501,56 @@ export default function AdminPage() {
             >
               {settingsSaved ? '✓ Saved!' : 'Save Settings'}
             </button>
+
+            {/* Danger Zone */}
+            <div className="border border-red-500/25 rounded-2xl p-5 space-y-4 mt-2">
+              <div>
+                <p className="text-red-400 font-bold text-sm mb-1">Danger Zone — Reset Platform</p>
+                <p className="text-white/30 text-xs leading-relaxed">
+                  This will reset ALL user balances, game winnings, and referral earnings to zero, and clear all game history. User accounts, usernames, and passwords are NOT deleted.
+                </p>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={resetAdminToo}
+                  onChange={e => setResetAdminToo(e.target.checked)}
+                  className="w-4 h-4 accent-red-400"
+                />
+                <span className="text-white/50 text-xs">Also reset my own admin account balance</span>
+              </label>
+
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1.5">
+                  Type <span className="text-red-400 font-mono font-bold">RESET</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirm}
+                  onChange={e => { setResetConfirm(e.target.value); setResetResult(null); }}
+                  placeholder="RESET"
+                  className="w-full bg-[#1a1a1a] border border-red-500/20 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-red-500/50 placeholder:text-white/15"
+                />
+              </div>
+
+              {resetResult && (
+                <div className="bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">
+                  <p className="text-green-400 text-sm font-bold">
+                    Platform reset — {resetResult.usersReset} user{resetResult.usersReset !== 1 ? 's' : ''} reset
+                    {resetResult.resetAdminToo ? ' (including admin)' : ' (admin balance kept)'}
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={resetPlatform}
+                disabled={resetConfirm !== 'RESET' || resetLoading}
+                className="w-full bg-red-500 text-white font-bold py-3.5 rounded-full text-sm hover:bg-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {resetLoading ? 'Resetting...' : 'Reset Platform'}
+              </button>
+            </div>
           </div>
         )}
 
