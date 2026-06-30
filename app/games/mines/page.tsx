@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Gem, X, AlertCircle, Heart } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
+import ProctoringWidget from '@/components/ProctoringWidget';
+import CameraConsentModal from '@/components/CameraConsentModal';
 
 type CellState = 'hidden' | 'safe' | 'mine' | 'mine-all';
 
@@ -29,6 +31,9 @@ export default function MinesPage() {
   const [msg, setMsg] = useState('');
   const [revealing, setRevealing] = useState<number | null>(null);
 
+  const [cameraConsent, setCameraConsent] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
+
   const [startingLives, setStartingLives] = useState(3);
   const [lives, setLives] = useState(3);
   const [extraLivesBought, setExtraLivesBought] = useState(0);
@@ -42,6 +47,14 @@ export default function MinesPage() {
       if (d.mines?.startingLives) setStartingLives(d.mines.startingLives);
     });
   }, []);
+
+  function handlePlayButton() {
+    if (cameraConsent) {
+      startGame();
+    } else {
+      setShowCameraModal(true);
+    }
+  }
 
   async function startGame() {
     if (loading) return;
@@ -329,7 +342,7 @@ export default function MinesPage() {
             )}
 
             <button
-              onClick={startGame}
+              onClick={handlePlayButton}
               disabled={loading || bet <= 0 || bet > balance}
               className="w-full bg-white text-black font-bold py-4 rounded-full tracking-wider text-sm hover:bg-white/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -484,6 +497,21 @@ export default function MinesPage() {
       )}
 
       <BottomNav />
+
+      {showCameraModal && (
+        <CameraConsentModal
+          onAccept={() => { setCameraConsent(true); setShowCameraModal(false); startGame(); }}
+          onCancel={() => setShowCameraModal(false)}
+        />
+      )}
+
+      <ProctoringWidget
+        active={game?.status === 'active'}
+        gameId={game?.gameId ?? ''}
+        gameType="mines"
+        onWarning={() => {}}
+        onForceEnd={() => { forfeitGame(); setMsg('Game ended due to malpractice.'); }}
+      />
     </div>
   );
 }

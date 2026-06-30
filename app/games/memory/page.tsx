@@ -7,6 +7,8 @@ import {
   Layers, type LucideIcon,
 } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
+import ProctoringWidget from '@/components/ProctoringWidget';
+import CameraConsentModal from '@/components/CameraConsentModal';
 
 // --- Icon map ---
 type IconKey =
@@ -105,6 +107,9 @@ export default function MemoryPage() {
   const [result, setResult] = useState<{ won: boolean; payout: number; multiplier: number } | null>(null);
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [cameraConsent, setCameraConsent] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
 
   const [startingLives, setStartingLives] = useState(3);
   const [extraLivesBought, setExtraLivesBought] = useState(0);
@@ -487,7 +492,13 @@ export default function MemoryPage() {
             )}
 
             <button
-              onClick={startGame}
+              onClick={() => {
+                if (mode === 'earning' && !cameraConsent) {
+                  setShowCameraModal(true);
+                } else {
+                  startGame();
+                }
+              }}
               disabled={loading || (mode === 'earning' && (bet <= 0 || bet > balance))}
               className="w-full bg-white text-black font-bold py-4 rounded-full tracking-wider text-sm hover:bg-white/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -674,6 +685,21 @@ export default function MemoryPage() {
       )}
 
       <BottomNav />
+
+      {showCameraModal && (
+        <CameraConsentModal
+          onAccept={() => { setCameraConsent(true); setShowCameraModal(false); startGame(); }}
+          onCancel={() => setShowCameraModal(false)}
+        />
+      )}
+
+      <ProctoringWidget
+        active={mode === 'earning' && ['preview', 'playing', 'round-complete'].includes(phase)}
+        gameId={gameId}
+        gameType="memory"
+        onWarning={() => {}}
+        onForceEnd={() => { completeGame(false); }}
+      />
     </div>
   );
 }

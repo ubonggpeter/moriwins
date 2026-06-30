@@ -55,7 +55,7 @@ function compressThumb(file: File): Promise<File> {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn' | 'announce' | 'subadmins' | 'notify'>('users');
+  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn' | 'announce' | 'subadmins' | 'notify' | 'malpractice'>('users');
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [currentUser, setCurrentUser] = useState<{ isAdmin: boolean; isSubAdmin: boolean; permissions: Record<string, boolean> } | null>(null);
 
@@ -177,6 +177,13 @@ export default function AdminPage() {
   const [nMsg, setNMsg] = useState('');
   const [nOk, setNOk] = useState(false);
 
+  interface MalpracticeLog {
+    id: string; gameSessionId: string; gameType: string; triggerType: string;
+    actionTaken: string; createdAt: string; username: string; email: string;
+  }
+  const [malpracticeLogs, setMalpracticeLogs] = useState<MalpracticeLog[]>([]);
+  const [malpracticeLoading, setMalpracticeLoading] = useState(false);
+
   const SUB_ADMIN_PERMS = [
     { key: 'manageUsers', label: 'Manage Users' },
     { key: 'manageWithdrawals', label: 'Withdrawals' },
@@ -215,6 +222,7 @@ export default function AdminPage() {
         if (d.isAdmin || p.manageAnnouncements) loadAnnouncements();
         if (d.isAdmin || p.manageWithdrawals) loadDeposits();
         if (d.isAdmin) loadSubAdmins();
+        if (d.isAdmin) loadMalpractice();
       })
       .catch(() => router.replace('/dashboard'));
   }, [router]);
@@ -256,6 +264,12 @@ export default function AdminPage() {
   }
   function loadSubAdmins() {
     fetch('/api/admin/sub-admins').then(r => r.json()).then(d => setSubAdmins(d.subAdmins ?? [])).catch(() => {});
+  }
+  function loadMalpractice() {
+    setMalpracticeLoading(true);
+    fetch('/api/admin/malpractice').then(r => r.json()).then(d => {
+      setMalpracticeLogs(d.logs ?? []);
+    }).catch(() => {}).finally(() => setMalpracticeLoading(false));
   }
   async function uploadCourseMedia(
     file: File,
@@ -690,6 +704,7 @@ export default function AdminPage() {
     { key: 'announce' as const, label: 'Announcements' },
     { key: 'notify' as const, label: 'Notify' },
     ...(currentUser?.isAdmin ? [{ key: 'subadmins' as const, label: 'Sub-Admins' }] : []),
+    ...(currentUser?.isAdmin ? [{ key: 'malpractice' as const, label: 'Malpractice' }] : []),
   ];
 
   // For sub-admins, filter tabs to only permitted ones
@@ -2331,6 +2346,49 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === 'malpractice' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-white/40 text-xs uppercase tracking-wider">Malpractice Reports</p>
+              <button
+                onClick={loadMalpractice}
+                disabled={malpracticeLoading}
+                className="text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
+              >
+                {malpracticeLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {malpracticeLogs.length === 0 && !malpracticeLoading && (
+              <p className="text-white/20 text-sm text-center py-8">No malpractice events recorded yet</p>
+            )}
+
+            {malpracticeLogs.map(log => (
+              <div key={log.id} className="bg-[#111111] rounded-2xl p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        log.actionTaken === 'game_ended'
+                          ? 'bg-red-500/20 text-red-400'
+                          : 'bg-yellow-400/15 text-yellow-400'
+                      }`}>
+                        {log.actionTaken === 'game_ended' ? 'GAME ENDED' : log.actionTaken.replace('_', ' ').toUpperCase()}
+                      </span>
+                      <span className="text-white/30 text-[10px] uppercase tracking-wider">{log.gameType}</span>
+                    </div>
+                    <p className="text-white text-sm font-bold">{log.username}</p>
+                    <p className="text-white/30 text-xs">{log.email}</p>
+                  </div>
+                  <p className="text-white/20 text-xs">{new Date(log.createdAt).toLocaleString()}</p>
+                </div>
+                <p className="text-white/50 text-xs mt-3 bg-[#1a1a1a] rounded-xl px-3 py-2">{log.triggerType}</p>
+                <p className="text-white/20 text-[10px] mt-1 font-mono">Session: {log.gameSessionId.slice(0, 8)}…</p>
+              </div>
+            ))}
           </div>
         )}
 

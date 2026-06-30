@@ -272,6 +272,19 @@ export async function initSchema(): Promise<void> {
     `;
     try { await sql`CREATE INDEX IF NOT EXISTS notifications_user_id_idx ON notifications(user_id, created_at DESC)`; } catch {}
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS malpractice_logs (
+        id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id         UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        game_session_id TEXT        NOT NULL,
+        game_type       TEXT        NOT NULL,
+        trigger_type    TEXT        NOT NULL,
+        action_taken    TEXT        NOT NULL,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    try { await sql`CREATE INDEX IF NOT EXISTS malpractice_logs_user_idx ON malpractice_logs(user_id, created_at DESC)`; } catch {}
+
     schemaInitialized = true;
   } catch (err) {
     console.error('[db] initSchema failed — check DATABASE_URL and Supabase connectivity:', err);

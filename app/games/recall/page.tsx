@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Brain, BookOpen, DollarSign, FileText, Pencil, Upload, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
+import ProctoringWidget from '@/components/ProctoringWidget';
+import CameraConsentModal from '@/components/CameraConsentModal';
 import { gradeAnswers } from '@/lib/recall';
 import type { RecallToken } from '@/lib/recall';
 
@@ -119,6 +121,8 @@ const PRESET_BETS = [50, 100, 500, 1000, 5000];
 export default function RecallPage() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>({ type: 'mode-select' });
+  const [cameraConsent, setCameraConsent] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
   const [bet, setBet] = useState(100);
   const [balance, setBalance] = useState(0);
   const [trainingInput, setTrainingInput] = useState<'paste' | 'upload'>('paste');
@@ -566,7 +570,9 @@ export default function RecallPage() {
               </div>
             )}
             <button
-              onClick={startEarning}
+              onClick={() => {
+                if (!cameraConsent) { setShowCameraModal(true); } else { startEarning(); }
+              }}
               disabled={!bet || bet <= 0 || bet > balance}
               className="w-full bg-white text-black font-bold py-4 rounded-full text-sm hover:bg-white/90 transition-all disabled:opacity-40"
             >
@@ -821,6 +827,35 @@ export default function RecallPage() {
 
       </div>
       <BottomNav />
+
+      {showCameraModal && (
+        <CameraConsentModal
+          onAccept={() => { setCameraConsent(true); setShowCameraModal(false); startEarning(); }}
+          onCancel={() => setShowCameraModal(false)}
+        />
+      )}
+
+      <ProctoringWidget
+        active={
+          (phase.type === 'reading' || phase.type === 'filling') &&
+          phase.mode === 'earning'
+        }
+        gameId={
+          (phase.type === 'reading' || phase.type === 'filling')
+            ? (phase.gameId ?? '')
+            : ''
+        }
+        gameType="recall"
+        onWarning={() => {}}
+        onForceEnd={() => {
+          if (phase.type === 'reading' || phase.type === 'filling') {
+            setPhase({
+              type: 'result', mode: 'earning', won: false, payout: 0, balance,
+              correctCount: 0, totalBlanks: 1, correctAnswers: [], userAnswers: [], grades: [],
+            });
+          }
+        }}
+      />
     </div>
   );
 }
