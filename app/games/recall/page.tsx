@@ -846,7 +846,7 @@ export default function RecallPage() {
             : ''
         }
         gameType="recall"
-        onWarning={() => {}}
+        bet={bet}
         onForceEnd={() => {
           if (phase.type === 'reading' || phase.type === 'filling') {
             setPhase({
@@ -855,6 +855,7 @@ export default function RecallPage() {
             });
           }
         }}
+        onBalanceUpdate={(bal) => setBalance(bal)}
       />
     </div>
   );

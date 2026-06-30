@@ -509,8 +509,9 @@ export default function MinesPage() {
         active={game?.status === 'active'}
         gameId={game?.gameId ?? ''}
         gameType="mines"
-        onWarning={() => {}}
+        bet={game?.bet ?? bet}
         onForceEnd={() => { forfeitGame(); setMsg('Game ended due to malpractice.'); }}
+        onBalanceUpdate={(bal) => setBalance(bal)}
       />
     </div>
   );

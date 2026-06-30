@@ -14,9 +14,22 @@ export async function POST(request: Request) {
   const user = await getUserById(payload.userId);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { gameSessionId, gameType, triggerType, actionTaken } = await request.json();
+  const { gameSessionId, gameType, triggerType, actionTaken, deductAmount } = await request.json();
   if (!gameSessionId || !gameType || !triggerType || !actionTaken) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+  }
+
+  let newBalance: number | undefined;
+  const deduct = Math.max(0, Math.floor(Number(deductAmount) || 0));
+
+  if (deduct > 0) {
+    const rows = await sql`
+      UPDATE users
+      SET balance = GREATEST(0, balance - ${deduct})
+      WHERE id = ${user.id}
+      RETURNING balance
+    `;
+    newBalance = Number(rows[0]?.balance ?? user.balance);
   }
 
   await sql`
@@ -24,5 +37,5 @@ export async function POST(request: Request) {
     VALUES (${user.id}, ${String(gameSessionId)}, ${String(gameType)}, ${String(triggerType)}, ${String(actionTaken)})
   `;
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, ...(newBalance !== undefined ? { newBalance, deducted: deduct } : {}) });
 }

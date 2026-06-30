@@ -697,8 +697,9 @@ export default function MemoryPage() {
         active={mode === 'earning' && ['preview', 'playing', 'round-complete'].includes(phase)}
         gameId={gameId}
         gameType="memory"
-        onWarning={() => {}}
+        bet={bet}
         onForceEnd={() => { completeGame(false); }}
+        onBalanceUpdate={(bal) => setBalance(bal)}
       />
     </div>
   );
