@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth';
-import { sql, getUserById, initSchema } from '@/lib/db';
+import { sql, getUserById, initSchema, getSetting } from '@/lib/db';
 import { createMineGrid, calcMinesMultiplier } from '@/lib/games';
 
 async function getAuthedUser() {
@@ -13,8 +13,6 @@ async function getAuthedUser() {
   return getUserById(payload.userId);
 }
 
-/** The postgres package in prepare:false mode may return JSONB as a raw string.
- *  Always parse defensively. */
 function parseJsonb<T>(value: unknown): T {
   if (typeof value === 'string') return JSON.parse(value) as T;
   return value as T;
@@ -34,6 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Mines must be between 1 and 20' }, { status: 400 });
   }
 
+  const startingLives = parseInt(await getSetting('mines_starting_lives', '3'), 10) || 3;
   const grid = createMineGrid(mineCount);
   const revealed = Array(25).fill(false);
   const gameId = uuidv4();
@@ -47,19 +46,18 @@ export async function POST(request: Request) {
       `;
       if (!updated) throw new Error('Insufficient balance');
 
-      // Use sql.json() so the postgres driver sends proper JSONB, not TEXT
       await tx`
-        INSERT INTO mines_games (id, user_id, grid, revealed, bet, mine_count, status, revealed_safe)
+        INSERT INTO mines_games (id, user_id, grid, revealed, bet, mine_count, status, revealed_safe, lives_remaining, extra_lives_bought)
         VALUES (
           ${gameId}, ${user.id},
           ${sql.json(grid)}, ${sql.json(revealed)},
-          ${bet}, ${mineCount}, 'active', 0
+          ${bet}, ${mineCount}, 'active', 0, ${startingLives}, 0
         )
       `;
       return updated.balance as number;
     });
 
-    return NextResponse.json({ gameId, bet, mineCount, balance: newBalance });
+    return NextResponse.json({ gameId, bet, mineCount, balance: newBalance, startingLives });
   } catch (err) {
     console.error('[mines/POST]', err);
     const message = err instanceof Error ? err.message : 'Failed to start game';
@@ -67,7 +65,7 @@ export async function POST(request: Request) {
   }
 }
 
-// PATCH — reveal a cell or cash out
+// PATCH — reveal a cell, cash out, buy a life, or forfeit
 export async function PATCH(request: Request) {
   await initSchema();
   const user = await getAuthedUser();
@@ -85,12 +83,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Game already ended' }, { status: 400 });
   }
 
-  // Defensively parse JSONB — may arrive as string in prepare:false mode
-  const grid     = parseJsonb<boolean[]>(row.grid);
-  const revealed = parseJsonb<boolean[]>(row.revealed);
-  const revealedSafe: number = Number(row.revealed_safe);
-  const mineCount: number    = Number(row.mine_count);
-  const bet: number          = Number(row.bet);
+  const grid        = parseJsonb<boolean[]>(row.grid);
+  const revealed    = parseJsonb<boolean[]>(row.revealed);
+  const revealedSafe: number  = Number(row.revealed_safe);
+  const mineCount: number     = Number(row.mine_count);
+  const bet: number           = Number(row.bet);
+  const livesRemaining: number  = Number(row.lives_remaining ?? 0);
+  const extraLivesBought: number = Number(row.extra_lives_bought ?? 0);
 
   // ── Reveal ────────────────────────────────────────────────────────────────
   if (action === 'reveal') {
@@ -106,18 +105,28 @@ export async function PATCH(request: Request) {
 
     try {
       if (isMine) {
-        await sql`
-          UPDATE mines_games
-          SET status = 'lost', revealed = ${sql.json(revealed)}
-          WHERE id = ${gameId}
-        `;
-        return NextResponse.json({
-          isMine: true,
-          grid,           // already a JS array — safe to return directly
-          balance: user.balance,
-          payout: 0,
-          multiplier: 0,
-        });
+        if (livesRemaining > 0) {
+          const newLives = livesRemaining - 1;
+          await sql`
+            UPDATE mines_games
+            SET revealed = ${sql.json(revealed)}, lives_remaining = ${newLives}
+            WHERE id = ${gameId}
+          `;
+          return NextResponse.json({ isMine: true, absorbed: true, livesRemaining: newLives, extraLivesBought });
+        } else {
+          await sql`
+            UPDATE mines_games SET status = 'lost', revealed = ${sql.json(revealed)} WHERE id = ${gameId}
+          `;
+          return NextResponse.json({
+            isMine: true,
+            absorbed: false,
+            grid,
+            balance: user.balance,
+            payout: 0,
+            multiplier: 0,
+            livesRemaining: 0,
+          });
+        }
       }
 
       const newRevealedSafe = revealedSafe + 1;
@@ -139,7 +148,7 @@ export async function PATCH(request: Request) {
     }
   }
 
-  // ── Cash out ───────────────────────────────────────────────────────────────
+  // ── Cash out ──────────────────────────────────────────────────────────────
   if (action === 'cashout') {
     if (revealedSafe === 0) {
       return NextResponse.json({ error: 'Reveal at least one cell first' }, { status: 400 });
@@ -182,6 +191,53 @@ export async function PATCH(request: Request) {
       console.error('[mines/PATCH cashout]', err);
       return NextResponse.json({ error: 'Failed to cashout' }, { status: 500 });
     }
+  }
+
+  // ── Buy extra life ────────────────────────────────────────────────────────
+  if (action === 'buy-life') {
+    if (extraLivesBought >= 3) {
+      return NextResponse.json({ error: 'Maximum extra lives reached' }, { status: 400 });
+    }
+
+    const currentPayout = revealedSafe > 0
+      ? Math.floor(bet * calcMinesMultiplier(25, mineCount, revealedSafe))
+      : bet;
+    const cost = Math.floor(currentPayout * 0.6);
+
+    if (user.balance < cost) {
+      return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 });
+    }
+
+    try {
+      const newBalance = await sql.begin(async tx => {
+        const [u] = await tx`
+          UPDATE users SET balance = balance - ${cost} WHERE id = ${user.id} AND balance >= ${cost} RETURNING balance
+        `;
+        if (!u) throw new Error('Insufficient balance');
+        await tx`
+          UPDATE mines_games
+          SET lives_remaining = lives_remaining + 1, extra_lives_bought = extra_lives_bought + 1
+          WHERE id = ${gameId}
+        `;
+        return u.balance as number;
+      });
+
+      return NextResponse.json({
+        balance: newBalance,
+        livesRemaining: livesRemaining + 1,
+        extraLivesBought: extraLivesBought + 1,
+        cost,
+      });
+    } catch (err) {
+      console.error('[mines/PATCH buy-life]', err);
+      return NextResponse.json({ error: 'Failed to purchase life' }, { status: 500 });
+    }
+  }
+
+  // ── Forfeit ───────────────────────────────────────────────────────────────
+  if (action === 'forfeit') {
+    await sql`UPDATE mines_games SET status = 'lost' WHERE id = ${gameId}`;
+    return NextResponse.json({ status: 'lost', balance: user.balance });
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

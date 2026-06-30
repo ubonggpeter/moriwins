@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Gem, X, AlertCircle } from 'lucide-react';
+import { Gem, X, AlertCircle, Heart } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 
 type CellState = 'hidden' | 'safe' | 'mine' | 'mine-all';
@@ -29,11 +29,18 @@ export default function MinesPage() {
   const [msg, setMsg] = useState('');
   const [revealing, setRevealing] = useState<number | null>(null);
 
+  const [startingLives, setStartingLives] = useState(3);
+  const [lives, setLives] = useState(3);
+  const [extraLivesBought, setExtraLivesBought] = useState(0);
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const [buyLifeCost, setBuyLifeCost] = useState(0);
+  const [buyingLife, setBuyingLife] = useState(false);
+
   useEffect(() => {
-    fetch('/api/user')
-      .then(r => r.json())
-      .then(d => { if (d.balance !== undefined) setBalance(d.balance); })
-      .catch(() => {});
+    fetch('/api/user').then(r => r.json()).then(d => { if (d.balance !== undefined) setBalance(d.balance); });
+    fetch('/api/games/status').then(r => r.json()).then(d => {
+      if (d.mines?.startingLives) setStartingLives(d.mines.startingLives);
+    });
   }, []);
 
   async function startGame() {
@@ -51,7 +58,11 @@ export default function MinesPage() {
         setMsg(data.error ?? 'Failed to start game');
         return;
       }
+      const sl = data.startingLives ?? startingLives;
       setBalance(data.balance);
+      setLives(sl);
+      setExtraLivesBought(0);
+      setShowBuyModal(false);
       setGame({
         gameId: data.gameId,
         bet,
@@ -90,13 +101,28 @@ export default function MinesPage() {
       const newCells: CellState[] = [...game.cells];
 
       if (data.isMine) {
-        const grid: boolean[] = Array.isArray(data.grid) ? data.grid : JSON.parse(data.grid);
-        grid.forEach((isMine, i) => {
-          if (isMine) newCells[i] = i === idx ? 'mine' : 'mine-all';
-        });
-        setBalance(data.balance);
-        setGame(g => g ? { ...g, cells: newCells, status: 'lost', multiplier: 0, payout: 0 } : g);
-        setMsg('BOOM! You hit a mine.');
+        if (data.absorbed) {
+          newCells[idx] = 'mine';
+          const newLives = data.livesRemaining as number;
+          const newExtra = data.extraLivesBought as number;
+          setLives(newLives);
+          setGame(g => g ? { ...g, cells: newCells } : g);
+          if (newLives <= 0 && newExtra < 3) {
+            const currentPayout = game.payout > 0 ? game.payout : game.bet;
+            setBuyLifeCost(Math.floor(currentPayout * 0.6));
+            setShowBuyModal(true);
+          } else if (newLives <= 0) {
+            await forfeitGame();
+          }
+        } else {
+          const grid: boolean[] = Array.isArray(data.grid) ? data.grid : JSON.parse(data.grid);
+          grid.forEach((isMine, i) => {
+            if (isMine) newCells[i] = i === idx ? 'mine' : 'mine-all';
+          });
+          setBalance(data.balance);
+          setGame(g => g ? { ...g, cells: newCells, status: 'lost', multiplier: 0, payout: 0 } : g);
+          setMsg('Out of lives! Game over.');
+        }
       } else {
         newCells[idx] = 'safe';
         setGame(g =>
@@ -147,9 +173,53 @@ export default function MinesPage() {
     }
   }
 
+  async function buyLife() {
+    if (!game || buyingLife) return;
+    setBuyingLife(true);
+    try {
+      const res = await fetch('/api/games/mines', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: game.gameId, action: 'buy-life' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setShowBuyModal(false);
+        await forfeitGame();
+        return;
+      }
+      setBalance(data.balance);
+      setLives(data.livesRemaining as number);
+      setExtraLivesBought(data.extraLivesBought as number);
+      setShowBuyModal(false);
+    } catch {
+      setShowBuyModal(false);
+      await forfeitGame();
+    } finally {
+      setBuyingLife(false);
+    }
+  }
+
+  async function forfeitGame() {
+    if (!game) return;
+    setShowBuyModal(false);
+    try {
+      await fetch('/api/games/mines', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: game.gameId, action: 'forfeit' }),
+      });
+    } catch { /* best effort */ }
+    setGame(g => g ? { ...g, status: 'lost', multiplier: 0, payout: 0 } : g);
+    setMsg('Out of lives! Game over.');
+  }
+
   function resetGame() {
     setGame(null);
     setMsg('');
+    setLives(startingLives);
+    setExtraLivesBought(0);
+    setShowBuyModal(false);
   }
 
   function cellStyle(state: CellState, idx: number): string {
@@ -277,6 +347,22 @@ export default function MinesPage() {
                 <p className="text-white font-mono font-bold">${game.bet}</p>
               </div>
               <div className="text-center">
+                <p className="text-white/30 text-[10px] mb-1">Lives</p>
+                <div className="flex gap-0.5 justify-center items-center">
+                  {Array.from({ length: startingLives }).map((_, i) => (
+                    <Heart
+                      key={i}
+                      size={14}
+                      color={i < lives ? '#f87171' : 'rgba(255,255,255,0.12)'}
+                      fill={i < lives ? '#f87171' : 'none'}
+                    />
+                  ))}
+                  {extraLivesBought > 0 && (
+                    <span className="text-yellow-400 text-[10px] font-bold ml-1">+{extraLivesBought}</span>
+                  )}
+                </div>
+              </div>
+              <div className="text-center">
                 <p className="text-white/30 text-[10px] mb-0.5">Multiplier</p>
                 <p className="text-white font-mono font-bold text-lg">
                   {game.multiplier.toFixed(2)}x
@@ -354,12 +440,49 @@ export default function MinesPage() {
           <ul className="text-white/30 text-xs space-y-1">
             <li>• Set your bet and number of mines, then tap Play.</li>
             <li>• Reveal cells — safe cells multiply your winnings.</li>
-            <li>• Hit a mine and you lose your bet.</li>
+            <li>• You start with {startingLives} {startingLives === 1 ? 'life' : 'lives'} — mine hits absorb a life before game over.</li>
             <li>• Cash out anytime to secure your winnings.</li>
           </ul>
         </div>
 
       </div>
+
+      {/* Buy-life modal */}
+      {showBuyModal && game && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="bg-[#111111] border border-white/10 rounded-2xl p-6 w-full max-w-sm text-center space-y-4">
+            <div className="flex justify-center mb-2">
+              <Heart size={36} color="#f87171" fill="#f87171" />
+            </div>
+            <p className="text-white font-bold text-lg">Out of Lives!</p>
+            <p className="text-white/50 text-sm">
+              Buy an extra life for{' '}
+              <span className="text-yellow-400 font-bold font-mono">${buyLifeCost.toLocaleString()}</span>{' '}
+              and keep playing?
+            </p>
+            <p className="text-white/25 text-xs">
+              Extra lives used: {extraLivesBought + 1}/3
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={forfeitGame}
+                disabled={buyingLife}
+                className="flex-1 bg-[#1c1c1c] text-white/60 font-bold py-3 rounded-full text-sm border border-white/10 hover:text-white transition-colors disabled:opacity-40"
+              >
+                Give Up
+              </button>
+              <button
+                onClick={buyLife}
+                disabled={buyingLife || balance < buyLifeCost}
+                className="flex-1 bg-yellow-400 text-black font-bold py-3 rounded-full text-sm hover:bg-yellow-300 transition-colors disabled:opacity-40"
+              >
+                {buyingLife ? 'Buying...' : `Buy $${buyLifeCost}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </div>
   );

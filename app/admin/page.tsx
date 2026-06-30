@@ -46,6 +46,9 @@ export default function AdminPage() {
 
   const [gameMuted, setGameMuted] = useState<Record<string, boolean>>({ mines: false, memory: false, recall: false });
   const [gameToggling, setGameToggling] = useState<Record<string, boolean>>({});
+  const [minesStartingLives, setMinesStartingLives] = useState(3);
+  const [memoryStartingLives, setMemoryStartingLives] = useState(3);
+  const [livesSaved, setLivesSaved] = useState<string | null>(null);
 
   interface RecallText { id: string; title: string; text_content: string; difficulty: string; disappears_after_reading: boolean; is_active: boolean; }
   const [recallTexts, setRecallTexts] = useState<RecallText[]>([]);
@@ -116,6 +119,8 @@ export default function AdminPage() {
       if (d.threshold !== undefined) setThreshold(String(d.threshold));
       if (d.depositInfo !== undefined) setDepositInfo(JSON.stringify(d.depositInfo, null, 2));
       if (d.leaderboardMinEarnings !== undefined) setLeaderboardMin(String(d.leaderboardMinEarnings));
+      if (d.minesStartingLives !== undefined) setMinesStartingLives(d.minesStartingLives);
+      if (d.memoryStartingLives !== undefined) setMemoryStartingLives(d.memoryStartingLives);
     }).catch(() => {});
   }
   function loadGameStatus() {
@@ -210,6 +215,17 @@ export default function AdminPage() {
     await fetch(`/api/admin/recall-texts/${id}`, { method: 'DELETE' });
     if (editingId === id) setEditingId(null);
     loadRecallTexts();
+  }
+
+  async function saveStartingLives(game: 'mines' | 'memory') {
+    const lives = game === 'mines' ? minesStartingLives : memoryStartingLives;
+    await fetch('/api/admin/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(game === 'mines' ? { minesStartingLives: lives } : { memoryStartingLives: lives }),
+    });
+    setLivesSaved(game);
+    setTimeout(() => setLivesSaved(null), 2000);
   }
 
   async function toggleGame(game: string, muted: boolean) {
@@ -661,6 +677,40 @@ export default function AdminPage() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Starting Lives */}
+            <div className="space-y-3">
+              <p className="text-white/40 text-xs uppercase tracking-wider">Starting Lives</p>
+              {[
+                { key: 'mines' as const, label: 'Mines', desc: 'Lives per game', value: minesStartingLives, set: setMinesStartingLives },
+                { key: 'memory' as const, label: 'Memory', desc: 'Lives per round', value: memoryStartingLives, set: setMemoryStartingLives },
+              ].map(g => (
+                <div key={g.key} className="bg-[#111111] rounded-2xl p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-white font-bold text-sm">{g.label}</p>
+                    <p className="text-white/30 text-xs">{g.desc}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={g.value}
+                      onChange={e => g.set(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                      className="w-16 bg-[#1c1c1c] text-white text-sm font-mono text-center rounded-xl px-2 py-2 border border-white/[0.08] focus:outline-none"
+                    />
+                    <button
+                      onClick={() => saveStartingLives(g.key)}
+                      className={`font-bold text-xs px-4 py-2 rounded-full transition-colors ${
+                        livesSaved === g.key ? 'bg-green-500 text-black' : 'bg-white text-black hover:bg-gray-100'
+                      }`}
+                    >
+                      {livesSaved === g.key ? '✓' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Recall Texts management */}

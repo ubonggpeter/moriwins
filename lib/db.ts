@@ -179,6 +179,12 @@ export async function initSchema(): Promise<void> {
     `;
     try { await sql`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS end_time TIMESTAMPTZ`; } catch {}
 
+    await sql`INSERT INTO app_settings (key, value) VALUES ('mines_starting_lives', '3') ON CONFLICT (key) DO NOTHING`;
+    await sql`INSERT INTO app_settings (key, value) VALUES ('memory_starting_lives', '3') ON CONFLICT (key) DO NOTHING`;
+    try { await sql`ALTER TABLE mines_games ADD COLUMN IF NOT EXISTS lives_remaining INT NOT NULL DEFAULT 3`; } catch {}
+    try { await sql`ALTER TABLE mines_games ADD COLUMN IF NOT EXISTS extra_lives_bought INT NOT NULL DEFAULT 0`; } catch {}
+    try { await sql`ALTER TABLE memory_games ADD COLUMN IF NOT EXISTS extra_lives_bought INT NOT NULL DEFAULT 0`; } catch {}
+
     schemaInitialized = true;
   } catch (err) {
     console.error('[db] initSchema failed — check DATABASE_URL and Supabase connectivity:', err);

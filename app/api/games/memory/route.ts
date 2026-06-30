@@ -35,8 +35,8 @@ export async function POST(request: Request) {
     if (!updated) throw new Error('Insufficient balance');
 
     await tx`
-      INSERT INTO memory_games (id, user_id, bet, status, wrong_guesses)
-      VALUES (${gameId}, ${user.id}, ${bet}, 'active', 0)
+      INSERT INTO memory_games (id, user_id, bet, status, wrong_guesses, extra_lives_bought)
+      VALUES (${gameId}, ${user.id}, ${bet}, 'active', 0, 0)
     `;
     return updated.balance as number;
   });
@@ -44,13 +44,14 @@ export async function POST(request: Request) {
   return NextResponse.json({ gameId, bet, balance: newBalance });
 }
 
-// PATCH — complete the game (client sends result)
+// PATCH — complete the game or buy a life
 export async function PATCH(request: Request) {
   await initSchema();
   const user = await getAuthedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { gameId, won, wrongGuesses } = await request.json();
+  const body = await request.json();
+  const { gameId, action } = body;
 
   const rows = await sql`SELECT * FROM memory_games WHERE id = ${gameId}`;
   if (!rows.length || rows[0].user_id !== user.id) {
@@ -59,6 +60,33 @@ export async function PATCH(request: Request) {
   if (rows[0].status !== 'active') {
     return NextResponse.json({ error: 'Game already ended' }, { status: 400 });
   }
+
+  // ── Buy extra life ────────────────────────────────────────────────────────
+  if (action === 'buy-life') {
+    const { wrongGuesses } = body;
+    const extraLivesBought = Number(rows[0].extra_lives_bought ?? 0);
+    if (extraLivesBought >= 3) {
+      return NextResponse.json({ error: 'Maximum extra lives reached' }, { status: 400 });
+    }
+    const bet: number = Number(rows[0].bet);
+    const mult = calcMemoryMultiplier(wrongGuesses ?? 0);
+    const cost = mult > 0 ? Math.floor(bet * mult * 0.6) : Math.floor(bet * 0.6);
+    if (user.balance < cost) {
+      return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 });
+    }
+    const newBalance = await sql.begin(async tx => {
+      const [u] = await tx`
+        UPDATE users SET balance = balance - ${cost} WHERE id = ${user.id} AND balance >= ${cost} RETURNING balance
+      `;
+      if (!u) throw new Error('Insufficient balance');
+      await tx`UPDATE memory_games SET extra_lives_bought = extra_lives_bought + 1 WHERE id = ${gameId}`;
+      return u.balance as number;
+    });
+    return NextResponse.json({ balance: newBalance, cost, extraLivesBought: extraLivesBought + 1 });
+  }
+
+  // ── Complete game ─────────────────────────────────────────────────────────
+  const { won, wrongGuesses } = body;
 
   const bet: number = rows[0].bet;
   const guesses: number = wrongGuesses ?? 0;

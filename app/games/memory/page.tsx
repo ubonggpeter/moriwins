@@ -36,19 +36,16 @@ function getIconColor(name: IconKey, round: number): string {
 
 // Round card pools (16 cards each = 8 pairs)
 const ROUND_POOLS: IconKey[][] = [
-  // Round 1: Crown×8 + User×8 → 4 crown pairs + 4 user pairs
   [
     'crown','crown','crown','crown','crown','crown','crown','crown',
     'user','user','user','user','user','user','user','user',
   ],
-  // Round 2: Skull×4, Heart×4, Zap×4, Leaf×4 → 2 pairs each
   [
     'skull','skull','skull','skull',
     'heart','heart','heart','heart',
     'zap','zap','zap','zap',
     'leaf','leaf','leaf','leaf',
   ],
-  // Round 3: 8 icon types × 2 → 8 pairs, all grayscale
   [
     'skull','skull','dollar','dollar','plane','plane','bird','bird',
     'bug','bug','fish','fish','leaf','leaf','sprout','sprout',
@@ -70,11 +67,17 @@ function CardIcon({ name, round }: { name: IconKey; round: number }) {
   return <Icon size={26} color={getIconColor(name, round)} strokeWidth={2} />;
 }
 
+function calcMemoryMultiplierLocal(wrongGuesses: number): number {
+  if (wrongGuesses === 0) return 3.0;
+  if (wrongGuesses <= 3) return 2.5;
+  if (wrongGuesses <= 6) return 2.0;
+  if (wrongGuesses <= 9) return 1.5;
+  return 0;
+}
+
 // --- Types ---
 type GamePhase = 'idle' | 'preview' | 'playing' | 'round-complete' | 'won' | 'lost';
 type GameMode = 'training' | 'earning';
-
-const LIVES_PER_ROUND = 3;
 
 const MULT_TABLE = [
   { label: '0 wrong', mult: '3.0x', color: 'text-green-400' },
@@ -91,7 +94,7 @@ export default function MemoryPage() {
   const [mode, setMode] = useState<GameMode>('earning');
   const [phase, setPhase] = useState<GamePhase>('idle');
   const [round, setRound] = useState(1);
-  const [lives, setLives] = useState(LIVES_PER_ROUND);
+  const [lives, setLives] = useState(3);
   const [totalWrong, setTotalWrong] = useState(0);
   const [gameId, setGameId] = useState('');
   const [cards, setCards] = useState<IconKey[]>([]);
@@ -103,19 +106,27 @@ export default function MemoryPage() {
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [startingLives, setStartingLives] = useState(3);
+  const [extraLivesBought, setExtraLivesBought] = useState(0);
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const [buyLifeCost, setBuyLifeCost] = useState(0);
+  const [buyingLife, setBuyingLife] = useState(false);
+
   const lockRef = useRef(false);
   const stateRef = useRef({
     cards: [] as IconKey[],
     flipped: [] as boolean[],
     matched: [] as boolean[],
     selected: [] as number[],
-    lives: LIVES_PER_ROUND,
+    lives: 3,
     totalWrong: 0,
     round: 1,
     gameId: '',
     bet: 50,
     phase: 'idle' as GamePhase,
     mode: 'earning' as GameMode,
+    startingLives: 3,
+    extraLivesBought: 0,
   });
 
   useEffect(() => { stateRef.current.cards = cards; }, [cards]);
@@ -129,10 +140,17 @@ export default function MemoryPage() {
   useEffect(() => { stateRef.current.bet = bet; }, [bet]);
   useEffect(() => { stateRef.current.phase = phase; }, [phase]);
   useEffect(() => { stateRef.current.mode = mode; }, [mode]);
+  useEffect(() => { stateRef.current.startingLives = startingLives; }, [startingLives]);
+  useEffect(() => { stateRef.current.extraLivesBought = extraLivesBought; }, [extraLivesBought]);
 
   useEffect(() => {
     fetch('/api/user').then(r => r.json()).then(d => {
       if (d.balance !== undefined) setBalance(d.balance);
+    });
+    fetch('/api/games/status').then(r => r.json()).then(d => {
+      const sl = d.memory?.startingLives ?? 3;
+      setStartingLives(sl);
+      stateRef.current.startingLives = sl;
     });
   }, []);
 
@@ -140,6 +158,8 @@ export default function MemoryPage() {
     const pool = ROUND_POOLS[roundNum - 1];
     const shuffled = shuffle([...pool]) as IconKey[];
     const allShown = Array(16).fill(true);
+    const sl = stateRef.current.startingLives;
+
     setCards(shuffled);
     stateRef.current.cards = shuffled;
     setFlipped(allShown);
@@ -148,8 +168,10 @@ export default function MemoryPage() {
     stateRef.current.matched = Array(16).fill(false);
     setSelected([]);
     stateRef.current.selected = [];
-    setLives(LIVES_PER_ROUND);
-    stateRef.current.lives = LIVES_PER_ROUND;
+    setLives(sl);
+    stateRef.current.lives = sl;
+    setExtraLivesBought(0);
+    stateRef.current.extraLivesBought = 0;
     lockRef.current = false;
 
     const newPhase: GamePhase = 'preview';
@@ -199,6 +221,7 @@ export default function MemoryPage() {
     setTotalWrong(0);
     stateRef.current.totalWrong = 0;
     setResult(null);
+    setShowBuyModal(false);
     setLoading(false);
     beginRound(1);
   }
@@ -284,12 +307,65 @@ export default function MemoryPage() {
       stateRef.current.flipped = resetFlipped;
       setSelected([]);
       stateRef.current.selected = [];
-      lockRef.current = false;
 
       if (newLives <= 0) {
-        await completeGame(false);
+        const s2 = stateRef.current;
+        if (s2.mode === 'earning' && s2.extraLivesBought < 3) {
+          const mult = calcMemoryMultiplierLocal(s2.totalWrong);
+          const cost = mult > 0 ? Math.floor(s2.bet * mult * 0.6) : Math.floor(s2.bet * 0.6);
+          setBuyLifeCost(cost);
+          setShowBuyModal(true);
+          // Keep lockRef.current = true while modal is shown
+        } else {
+          lockRef.current = false;
+          await completeGame(false);
+        }
+      } else {
+        lockRef.current = false;
       }
     }
+  }
+
+  async function buyLifeMemory() {
+    setBuyingLife(true);
+    const { gameId: gid, totalWrong: tw, extraLivesBought: eb } = stateRef.current;
+
+    try {
+      const res = await fetch('/api/games/memory', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: gid, action: 'buy-life', wrongGuesses: tw }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setShowBuyModal(false);
+        lockRef.current = false;
+        await completeGame(false);
+        return;
+      }
+
+      setBalance(data.balance);
+      const newExtra = eb + 1;
+      setExtraLivesBought(newExtra);
+      stateRef.current.extraLivesBought = newExtra;
+      setLives(1);
+      stateRef.current.lives = 1;
+      setShowBuyModal(false);
+      lockRef.current = false;
+    } catch {
+      setShowBuyModal(false);
+      lockRef.current = false;
+      await completeGame(false);
+    } finally {
+      setBuyingLife(false);
+    }
+  }
+
+  async function giveUpMemory() {
+    setShowBuyModal(false);
+    lockRef.current = false;
+    await completeGame(false);
   }
 
   function resetGame() {
@@ -301,8 +377,10 @@ export default function MemoryPage() {
     setResult(null);
     setMsg('');
     setRound(1);
-    setLives(LIVES_PER_ROUND);
+    setLives(stateRef.current.startingLives);
     setTotalWrong(0);
+    setExtraLivesBought(0);
+    setShowBuyModal(false);
     lockRef.current = false;
   }
 
@@ -422,7 +500,7 @@ export default function MemoryPage() {
                 <li>• 3 rounds, 16 cards each (4×4 grid)</li>
                 <li>• Cards shown for 3 seconds — memorize them!</li>
                 <li>• Flip two cards; matching pairs stay face-up</li>
-                <li>• 3 lives per round — wrong match costs 1 life</li>
+                <li>• {startingLives} {startingLives === 1 ? 'life' : 'lives'} per round — wrong match costs 1 life</li>
                 <li>• 0 lives = game over · Clear all 3 rounds to win</li>
               </ul>
             </div>
@@ -439,15 +517,18 @@ export default function MemoryPage() {
               </div>
               <div className="text-center">
                 <p className="text-white/30 text-[10px] mb-1.5">Lives</p>
-                <div className="flex gap-1 justify-center">
-                  {[1, 2, 3].map(i => (
+                <div className="flex gap-1 justify-center items-center">
+                  {Array.from({ length: startingLives }).map((_, i) => (
                     <Heart
                       key={i}
                       size={16}
-                      color={i <= lives ? '#f87171' : 'rgba(255,255,255,0.12)'}
-                      fill={i <= lives ? '#f87171' : 'none'}
+                      color={i < lives ? '#f87171' : 'rgba(255,255,255,0.12)'}
+                      fill={i < lives ? '#f87171' : 'none'}
                     />
                   ))}
+                  {extraLivesBought > 0 && (
+                    <span className="text-yellow-400 text-[10px] font-bold ml-1">+{extraLivesBought}</span>
+                  )}
                 </div>
               </div>
               <div className="text-right">
@@ -555,6 +636,43 @@ export default function MemoryPage() {
         )}
 
       </div>
+
+      {/* Buy-life modal */}
+      {showBuyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="bg-[#111111] border border-white/10 rounded-2xl p-6 w-full max-w-sm text-center space-y-4">
+            <div className="flex justify-center mb-2">
+              <Heart size={36} color="#f87171" fill="#f87171" />
+            </div>
+            <p className="text-white font-bold text-lg">Out of Lives!</p>
+            <p className="text-white/50 text-sm">
+              Buy an extra life for{' '}
+              <span className="text-yellow-400 font-bold font-mono">${buyLifeCost.toLocaleString()}</span>{' '}
+              and keep playing?
+            </p>
+            <p className="text-white/25 text-xs">
+              Extra lives this round: {extraLivesBought + 1}/3
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={giveUpMemory}
+                disabled={buyingLife}
+                className="flex-1 bg-[#1c1c1c] text-white/60 font-bold py-3 rounded-full text-sm border border-white/10 hover:text-white transition-colors disabled:opacity-40"
+              >
+                Give Up
+              </button>
+              <button
+                onClick={buyLifeMemory}
+                disabled={buyingLife || balance < buyLifeCost}
+                className="flex-1 bg-yellow-400 text-black font-bold py-3 rounded-full text-sm hover:bg-yellow-300 transition-colors disabled:opacity-40"
+              >
+                {buyingLife ? 'Buying...' : `Buy $${buyLifeCost}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </div>
   );
