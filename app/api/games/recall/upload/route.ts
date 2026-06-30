@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
@@ -14,10 +15,11 @@ export async function POST(request: Request) {
     let text = '';
 
     if (filename.endsWith('.pdf')) {
-      // Import from lib path to avoid pdf-parse's test-file auto-detection triggering in Next.js
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse/lib/pdf-parse.js');
-      const result = await pdfParse(buffer);
+      const { PDFParse } = require('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
+      await parser.destroy();
       text = (result.text as string)?.trim() ?? '';
     } else if (filename.endsWith('.docx')) {
       const mammoth = await import('mammoth');

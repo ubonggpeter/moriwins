@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 async function getAdmin() {
   const token = cookies().get('token')?.value;
@@ -29,8 +30,10 @@ export async function POST(request: Request) {
 
     if (filename.endsWith('.pdf')) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse/lib/pdf-parse.js');
-      const result = await pdfParse(buffer);
+      const { PDFParse } = require('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
+      await parser.destroy();
       text = (result.text as string)?.trim() ?? '';
     } else if (filename.endsWith('.docx')) {
       const mammoth = await import('mammoth');
