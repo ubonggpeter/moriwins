@@ -21,6 +21,7 @@ interface AdminWithdrawal {
   email: string;
   amount: number;
   status: string;
+  type: string;
   adminNote: string | null;
   bankName: string;
   accountNumber: string;
@@ -572,7 +573,14 @@ export default function AdminPage() {
                         {w.status}
                       </span>
                     </div>
-                    <p className="text-yellow-400 font-mono font-black text-xl">${w.amount.toLocaleString()}</p>
+                    <div className="flex items-center gap-2 mt-0.5 mb-0.5">
+                      <p className="text-yellow-400 font-mono font-black text-xl">${w.amount.toLocaleString()}</p>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${
+                        w.type === 'referral' ? 'bg-blue-500/15 text-blue-400' : 'bg-white/8 text-white/30'
+                      }`}>
+                        {w.type === 'referral' ? 'Referral' : 'Balance'}
+                      </span>
+                    </div>
                     <p className="text-white/30 text-xs mt-1">
                       {w.bankName} · {w.accountNumber} · {w.accountName}
                     </p>

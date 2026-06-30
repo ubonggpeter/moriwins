@@ -232,6 +232,9 @@ export async function initSchema(): Promise<void> {
       )
     `;
 
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_available INTEGER NOT NULL DEFAULT 0`; } catch {}
+    try { await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'balance'`; } catch {}
+
     schemaInitialized = true;
   } catch (err) {
     console.error('[db] initSchema failed — check DATABASE_URL and Supabase connectivity:', err);
@@ -253,6 +256,7 @@ function rowToUser(r: Record<string, unknown>): User {
     referralCode: (r.referral_code as string) ?? '',
     referredBy: (r.referred_by as string) ?? null,
     referralEarnings: Number(r.referral_earnings ?? 0),
+    referralAvailable: Number(r.referral_available ?? 0),
     totalGameWinnings: Number(r.total_game_winnings ?? 0),
     avatarUrl: (r.avatar_url as string | null) ?? null,
   };

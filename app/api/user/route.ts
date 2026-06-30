@@ -20,6 +20,7 @@ export async function GET() {
     balance: user.balance,
     referralCode: user.referralCode,
     referralEarnings: user.referralEarnings,
+    referralAvailable: user.referralAvailable,
     totalGameWinnings: user.totalGameWinnings,
     isAdmin: user.isAdmin === true,
     avatarUrl: user.avatarUrl ?? null,

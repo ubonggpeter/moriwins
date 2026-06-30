@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if (referral) {
       const bonus = Math.floor(amt * 0.5);
       if (bonus > 0) {
-        await sql`UPDATE users SET balance = balance + ${bonus}, referral_earnings = referral_earnings + ${bonus} WHERE id = ${referral.referrer_id as string}`;
+        await sql`UPDATE users SET balance = balance + ${bonus}, referral_earnings = referral_earnings + ${bonus}, referral_available = referral_available + ${bonus} WHERE id = ${referral.referrer_id as string}`;
         await sql`UPDATE referrals SET bonus_paid = ${bonus} WHERE id = ${referral.id as string}`;
       }
     }

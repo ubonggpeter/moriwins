@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       referralCode,
       referredBy: null,
       referralEarnings: 0,
+      referralAvailable: 0,
       totalGameWinnings: 0,
       avatarUrl: null,
     });

@@ -33,6 +33,7 @@ export async function GET() {
       email: r.email,
       amount: Number(r.amount),
       status: r.status,
+      type: (r.type as string) ?? 'balance',
       adminNote: r.admin_note,
       bankName: r.bank_name,
       accountNumber: r.account_number,

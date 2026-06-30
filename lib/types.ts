@@ -9,6 +9,7 @@ export interface User {
   referralCode: string;
   referredBy: string | null;
   referralEarnings: number;
+  referralAvailable: number;
   totalGameWinnings: number;
   avatarUrl: string | null;
 }
