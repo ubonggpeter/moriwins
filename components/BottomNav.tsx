@@ -72,18 +72,8 @@ export default function BottomNav() {
 
       {/* Mobile bottom nav */}
       <nav
-        className="md:hidden"
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 9999,
-          backgroundColor: '#0a0a0a',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-          backdropFilter: 'blur(12px)',
-        }}
+        className="md:hidden fixed bottom-0 left-0 right-0 z-[9999] bg-[#0a0a0a] border-t border-white/10"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="flex items-center justify-around h-16 px-2">
           {ITEMS.map(item => {

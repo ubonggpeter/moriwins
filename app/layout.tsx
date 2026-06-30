@@ -10,7 +10,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark">
       <body className="antialiased bg-black text-white min-h-screen">
-        <div style={{ paddingBottom: '5rem' }}>{children}</div>
+        <div className="pb-24">{children}</div>
       </body>
     </html>
   );
