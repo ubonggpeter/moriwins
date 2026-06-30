@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Trophy } from 'lucide-react';
 
 const ITEMS = [
   {
@@ -31,6 +32,13 @@ const ITEMS = [
     ),
   },
   {
+    href: '/tournaments',
+    label: 'Compete',
+    icon: (active: boolean) => (
+      <Trophy size={24} className={active ? 'text-white' : 'text-white/35'} fill={active ? 'white' : 'none'} />
+    ),
+  },
+  {
     href: '/profile',
     label: 'Profile',
     icon: (active: boolean) => (
@@ -44,7 +52,9 @@ const ITEMS = [
 export default function BottomNav() {
   const pathname = usePathname();
   const isActive = (href: string) =>
-    pathname === href || (href === '/games' && pathname.startsWith('/games'));
+    pathname === href ||
+    (href === '/games' && pathname.startsWith('/games')) ||
+    (href === '/tournaments' && pathname.startsWith('/tournaments'));
 
   return (
     <>

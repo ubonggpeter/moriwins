@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Gem, Layers, Brain, Pencil, Upload, Loader2, Check, FileText, Send, X } from 'lucide-react';
+import { Gem, Layers, Brain, Pencil, Upload, Loader2, Check, FileText, Send, X, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 
@@ -30,7 +30,7 @@ interface AdminWithdrawal {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send'>('users');
+  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments'>('users');
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -72,6 +72,20 @@ export default function AdminPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetResult, setResetResult] = useState<{ usersReset: number; resetAdminToo: boolean } | null>(null);
 
+  interface AdminTournament {
+    id: string; game_type: string; entry_bet: number; start_time: string;
+    status: string; entry_count: number; total_pool: number; winner_count: number;
+  }
+  const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
+  const [tGameType, setTGameType] = useState('mines');
+  const [tEntryBet, setTEntryBet] = useState('50');
+  const [tStartNow, setTStartNow] = useState(true);
+  const [tStartTime, setTStartTime] = useState('');
+  const [tCreating, setTCreating] = useState(false);
+  const [tEnding, setTEnding] = useState<string | null>(null);
+  interface EndResult { status: string; totalEntries: number; winnersCount: number; prizePool: number; distributed: number; }
+  const [tEndResult, setTEndResult] = useState<Record<string, EndResult>>({});
+
   useEffect(() => {
     fetch('/api/user')
       .then(r => r.json())
@@ -83,6 +97,7 @@ export default function AdminPage() {
         loadSettings();
         loadGameStatus();
         loadRecallTexts();
+        loadTournaments();
       })
       .catch(() => router.replace('/dashboard'));
   }, [router]);
@@ -107,6 +122,9 @@ export default function AdminPage() {
   }
   function loadRecallTexts() {
     fetch('/api/admin/recall-texts').then(r => r.json()).then(d => setRecallTexts(d.texts ?? [])).catch(() => {});
+  }
+  function loadTournaments() {
+    fetch('/api/admin/tournaments').then(r => r.json()).then(d => setTournaments(d.tournaments ?? [])).catch(() => {});
   }
   async function uploadRecallFile(file: File, target: 'add' | 'edit' = 'add') {
     if (target === 'add') setRecallUploading(true);
@@ -240,6 +258,44 @@ export default function AdminPage() {
     setTimeout(() => setSettingsSaved(false), 2000);
   }
 
+  async function createTournament() {
+    setTCreating(true);
+    const startTime = tStartNow ? undefined : tStartTime;
+    const res = await fetch('/api/admin/tournaments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gameType: tGameType, entryBet: Number(tEntryBet), startTime }),
+    });
+    setTCreating(false);
+    if (res.ok) {
+      setTEntryBet('50');
+      setTStartNow(true);
+      setTStartTime('');
+      loadTournaments();
+    } else {
+      const d = await res.json();
+      alert(d.error ?? 'Failed to create tournament');
+    }
+  }
+
+  async function endTournament(id: string) {
+    if (!confirm('End this tournament and calculate payouts now?')) return;
+    setTEnding(id);
+    const res = await fetch(`/api/admin/tournaments/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'end' }),
+    });
+    const data = await res.json();
+    setTEnding(null);
+    if (res.ok) {
+      setTEndResult(p => ({ ...p, [id]: data }));
+      loadTournaments();
+    } else {
+      alert(data.error ?? 'Failed to end tournament');
+    }
+  }
+
   async function resetPlatform() {
     if (resetConfirm !== 'RESET' || resetLoading) return;
     setResetLoading(true);
@@ -274,6 +330,7 @@ export default function AdminPage() {
     { key: 'settings' as const, label: 'Settings' },
     { key: 'games' as const, label: 'Games' },
     { key: 'send' as const, label: 'Send Money' },
+    { key: 'tournaments' as const, label: 'Tournaments' },
   ];
 
   const pendingCount = withdrawals.filter(w => w.status === 'pending').length;
@@ -909,6 +966,121 @@ export default function AdminPage() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === 'tournaments' && (
+          <div className="space-y-6">
+            {/* Create form */}
+            <div className="bg-[#111111] rounded-2xl p-5 space-y-4">
+              <p className="text-white/40 text-xs uppercase tracking-wider">Create Tournament</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Game</label>
+                  <select
+                    value={tGameType}
+                    onChange={e => setTGameType(e.target.value)}
+                    className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none"
+                  >
+                    <option value="mines">Mines</option>
+                    <option value="memory">Memory</option>
+                    <option value="recall">Text Recall</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Entry Bet ($)</label>
+                  <input
+                    type="number"
+                    value={tEntryBet}
+                    min={1}
+                    onChange={e => setTEntryBet(e.target.value)}
+                    className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white font-mono text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-2">Start Time</label>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={() => setTStartNow(true)}
+                    className={`flex-1 py-2 rounded-full text-xs font-bold transition-all ${tStartNow ? 'bg-white text-black' : 'bg-[#1c1c1c] text-white/40 border border-white/[0.08]'}`}
+                  >
+                    Start Now
+                  </button>
+                  <button
+                    onClick={() => setTStartNow(false)}
+                    className={`flex-1 py-2 rounded-full text-xs font-bold transition-all ${!tStartNow ? 'bg-white text-black' : 'bg-[#1c1c1c] text-white/40 border border-white/[0.08]'}`}
+                  >
+                    Schedule
+                  </button>
+                </div>
+                {!tStartNow && (
+                  <input
+                    type="datetime-local"
+                    value={tStartTime}
+                    onChange={e => setTStartTime(e.target.value)}
+                    className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none"
+                  />
+                )}
+              </div>
+
+              <button
+                onClick={createTournament}
+                disabled={tCreating || !tEntryBet || (!tStartNow && !tStartTime)}
+                className="w-full bg-yellow-400 text-black font-bold py-3 rounded-full text-sm hover:bg-yellow-300 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {tCreating ? <Loader2 size={14} className="animate-spin" /> : <Trophy size={14} />}
+                {tCreating ? 'Creating...' : 'Create Tournament'}
+              </button>
+            </div>
+
+            {/* Tournament list */}
+            {tournaments.length === 0 && (
+              <p className="text-white/20 text-sm text-center py-6">No tournaments yet</p>
+            )}
+            <div className="space-y-3">
+              {tournaments.map(t => {
+                const endRes = tEndResult[t.id];
+                const statusColor = t.status === 'active' ? 'text-green-400' : t.status === 'upcoming' ? 'text-yellow-400' : 'text-white/30';
+                const gameLabel: Record<string, string> = { mines: 'Mines', memory: 'Memory', recall: 'Recall' };
+                return (
+                  <div key={t.id} className="bg-[#111111] rounded-2xl p-5">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-white font-bold text-sm">{gameLabel[t.game_type] ?? t.game_type}</p>
+                          <span className={`text-[10px] font-bold uppercase ${statusColor}`}>{t.status}</span>
+                        </div>
+                        <div className="flex gap-4 text-xs text-white/40">
+                          <span>Entry: <span className="text-white font-mono">${t.entry_bet}</span></span>
+                          <span>Players: <span className="text-white font-mono">{t.entry_count}</span></span>
+                          <span>Winners: <span className="text-white font-mono">{t.winner_count}</span></span>
+                        </div>
+                        <p className="text-white/20 text-[10px] mt-1">{new Date(t.start_time).toLocaleString()}</p>
+                      </div>
+                      {t.status !== 'completed' && (
+                        <button
+                          onClick={() => endTournament(t.id)}
+                          disabled={tEnding === t.id}
+                          className="bg-red-500/80 text-white font-bold text-xs px-4 py-2 rounded-full hover:bg-red-500 transition-colors disabled:opacity-40"
+                        >
+                          {tEnding === t.id ? 'Ending...' : 'End & Pay Out'}
+                        </button>
+                      )}
+                    </div>
+                    {endRes && (
+                      <div className="mt-3 bg-green-500/10 border border-green-500/20 rounded-xl px-3 py-2">
+                        <p className="text-green-400 text-xs font-bold">
+                          Completed · {endRes.winnersCount} winner{endRes.winnersCount !== 1 ? 's' : ''} · ${endRes.distributed.toLocaleString()} distributed from ${endRes.prizePool.toLocaleString()} prize pool
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

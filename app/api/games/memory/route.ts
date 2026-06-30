@@ -80,6 +80,26 @@ export async function PATCH(request: Request) {
     return updated.balance as number;
   });
 
+  // Record result in active tournament entry if present
+  if (finalStatus === 'won' && payout > 0) {
+    try {
+      const [tEntry] = await sql`
+        SELECT te.id FROM tournament_entries te
+        JOIN tournaments t ON te.tournament_id = t.id
+        WHERE te.user_id = ${user.id}
+          AND t.game_type = 'memory'
+          AND t.status = 'active'
+          AND te.result_amount = 0
+        LIMIT 1
+      `;
+      if (tEntry) {
+        await sql`UPDATE tournament_entries SET result_amount = ${payout} WHERE id = ${tEntry.id as string}`;
+      }
+    } catch (err) {
+      console.error('[memory/tournament]', err);
+    }
+  }
+
   return NextResponse.json({
     payout,
     multiplier,

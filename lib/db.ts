@@ -155,6 +155,28 @@ export async function initSchema(): Promise<void> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS tournaments (
+        id         UUID        PRIMARY KEY,
+        game_type  TEXT        NOT NULL,
+        entry_bet  INTEGER     NOT NULL,
+        start_time TIMESTAMPTZ NOT NULL,
+        status     TEXT        NOT NULL DEFAULT 'upcoming',
+        created_by UUID        NOT NULL REFERENCES users(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS tournament_entries (
+        id            UUID        PRIMARY KEY,
+        tournament_id UUID        NOT NULL REFERENCES tournaments(id),
+        user_id       UUID        NOT NULL REFERENCES users(id),
+        bet_amount    INTEGER     NOT NULL,
+        result_amount INTEGER     NOT NULL DEFAULT 0,
+        joined_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (tournament_id, user_id)
+      )
+    `;
 
     schemaInitialized = true;
   } catch (err) {

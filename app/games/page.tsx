@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Gem, Layers, Brain } from 'lucide-react';
+import { Gem, Layers, Brain, Trophy } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 
 const GAMES = [
@@ -41,6 +41,20 @@ export default function GamesPage() {
             <p className="text-white/30 text-xs">Choose your game</p>
           </div>
         </div>
+
+        {/* Tournaments banner */}
+        <Link href="/tournaments" className="block bg-[#111111] border border-yellow-400/20 rounded-2xl p-4 mb-4 flex items-center gap-4 hover:border-yellow-400/40 transition-colors">
+          <div className="w-10 h-10 rounded-xl bg-yellow-400/10 flex items-center justify-center shrink-0">
+            <Trophy size={20} className="text-yellow-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-white font-bold text-sm">Tournaments</p>
+            <p className="text-white/40 text-xs">Compete against others · Win the prize pool</p>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} className="w-4 h-4 text-white/30 shrink-0">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
 
         {/* Game cards — 1 col mobile, 2 col desktop */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
