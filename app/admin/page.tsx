@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Gem, Layers, Brain, Pencil, Upload, Loader2, Check, FileText, Send, X, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { upload } from '@vercel/blob/client';
 import BottomNav from '@/components/BottomNav';
 import LoadingScreen from '@/components/LoadingScreen';
 
@@ -232,13 +233,22 @@ export default function AdminPage() {
     fetch('/api/admin/sub-admins').then(r => r.json()).then(d => setSubAdmins(d.subAdmins ?? [])).catch(() => {});
   }
   async function uploadCourseMedia(file: File, type: 'video' | 'thumbnail'): Promise<string | null> {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('type', type);
-    const res = await fetch('/api/admin/courses/upload-media', { method: 'POST', body: fd });
-    if (!res.ok) { const d = await res.json(); alert(d.error ?? 'Upload failed'); return null; }
-    const d = await res.json();
-    return d.url as string;
+    const ext = file.name.split('.').pop() ?? (type === 'video' ? 'mp4' : 'jpg');
+    const prefix = type === 'video' ? 'courses/videos' : 'courses/thumbnails';
+    const pathname = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    try {
+      const blob = await upload(pathname, file, {
+        access: 'public',
+        handleUploadUrl: '/api/admin/courses/upload-media',
+        contentType: file.type,
+        multipart: type === 'video', // split large video files into parallel chunks
+      });
+      return blob.url;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Upload failed';
+      alert(msg);
+      return null;
+    }
   }
   async function createCourse() {
     setCCreating(true);
