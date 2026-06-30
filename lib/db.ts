@@ -185,6 +185,53 @@ export async function initSchema(): Promise<void> {
     try { await sql`ALTER TABLE mines_games ADD COLUMN IF NOT EXISTS extra_lives_bought INT NOT NULL DEFAULT 0`; } catch {}
     try { await sql`ALTER TABLE memory_games ADD COLUMN IF NOT EXISTS extra_lives_bought INT NOT NULL DEFAULT 0`; } catch {}
 
+    await sql`INSERT INTO app_settings (key, value) VALUES ('learn_pass_threshold', '70') ON CONFLICT (key) DO NOTHING`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS courses (
+        id            UUID        PRIMARY KEY,
+        title         TEXT        NOT NULL,
+        description   TEXT        NOT NULL DEFAULT '',
+        price         INTEGER     NOT NULL DEFAULT 0,
+        video_url     TEXT        NOT NULL DEFAULT '',
+        thumbnail_url TEXT        NOT NULL DEFAULT '',
+        is_active     BOOLEAN     NOT NULL DEFAULT true,
+        created_by    UUID        NOT NULL REFERENCES users(id),
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS course_purchases (
+        id           UUID        PRIMARY KEY,
+        user_id      UUID        NOT NULL REFERENCES users(id),
+        course_id    UUID        NOT NULL REFERENCES courses(id),
+        purchased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        completed    BOOLEAN     NOT NULL DEFAULT false,
+        test_passed  BOOLEAN     NOT NULL DEFAULT false,
+        UNIQUE (user_id, course_id)
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS course_questions (
+        id                   UUID        PRIMARY KEY,
+        course_id            UUID        NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+        question_text        TEXT        NOT NULL,
+        options              JSONB       NOT NULL,
+        correct_answer_index INTEGER     NOT NULL,
+        created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS certificates (
+        id               UUID        PRIMARY KEY,
+        user_id          UUID        NOT NULL REFERENCES users(id),
+        course_id        UUID        NOT NULL REFERENCES courses(id),
+        issued_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        certificate_code TEXT        NOT NULL UNIQUE,
+        UNIQUE (user_id, course_id)
+      )
+    `;
+
     schemaInitialized = true;
   } catch (err) {
     console.error('[db] initSchema failed — check DATABASE_URL and Supabase connectivity:', err);

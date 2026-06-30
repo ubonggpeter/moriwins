@@ -39,6 +39,15 @@ const ITEMS = [
     ),
   },
   {
+    href: '/learn',
+    label: 'Learn',
+    icon: (active: boolean) => (
+      <svg viewBox="0 0 24 24" fill={active ? 'white' : 'none'} stroke="white" strokeWidth={active ? 0 : 1.8} className="w-6 h-6">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+      </svg>
+    ),
+  },
+  {
     href: '/profile',
     label: 'Profile',
     icon: (active: boolean) => (
@@ -54,7 +63,9 @@ export default function BottomNav() {
   const isActive = (href: string) =>
     pathname === href ||
     (href === '/games' && pathname.startsWith('/games')) ||
-    (href === '/tournaments' && pathname.startsWith('/tournaments'));
+    (href === '/tournaments' && pathname.startsWith('/tournaments')) ||
+    (href === '/learn' && pathname.startsWith('/learn')) ||
+    (href === '/certificates' && pathname.startsWith('/certificates'));
 
   return (
     <>
@@ -92,12 +103,12 @@ export default function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center gap-1 min-w-[56px]"
+                className="flex flex-col items-center gap-1 min-w-[44px]"
               >
                 <span className={active ? 'opacity-100' : 'opacity-35'}>
                   {item.icon(active)}
                 </span>
-                <span className={`text-[10px] tracking-wide ${active ? 'text-white' : 'text-white/35'}`}>
+                <span className={`text-[9px] tracking-wide ${active ? 'text-white' : 'text-white/35'}`}>
                   {item.label}
                 </span>
               </Link>

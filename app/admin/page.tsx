@@ -30,7 +30,7 @@ interface AdminWithdrawal {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments'>('users');
+  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn'>('users');
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -92,6 +92,29 @@ export default function AdminPage() {
   interface EndResult { status: string; totalEntries: number; winnersCount: number; prizePool: number; distributed: number; }
   const [tEndResult, setTEndResult] = useState<Record<string, EndResult>>({});
 
+  interface AdminCourse {
+    id: string; title: string; description: string; price: number;
+    video_url: string; thumbnail_url: string; is_active: boolean;
+    purchase_count: number; created_at: string;
+  }
+  interface CourseQuestion {
+    id: string; course_id: string; question_text: string;
+    options: string[]; correct_answer_index: number;
+  }
+  const [courses, setCourses] = useState<AdminCourse[]>([]);
+  const [cTitle, setCTitle] = useState('');
+  const [cDesc, setCDesc] = useState('');
+  const [cPrice, setCPrice] = useState('0');
+  const [cVideoUrl, setCVideoUrl] = useState('');
+  const [cThumbUrl, setCThumbUrl] = useState('');
+  const [cCreating, setCCreating] = useState(false);
+  const [managingCourse, setManagingCourse] = useState<AdminCourse | null>(null);
+  const [courseQuestions, setCourseQuestions] = useState<CourseQuestion[]>([]);
+  const [qText, setQText] = useState('');
+  const [qOptions, setQOptions] = useState(['', '', '', '']);
+  const [qCorrect, setQCorrect] = useState(0);
+  const [qAdding, setQAdding] = useState(false);
+
   useEffect(() => {
     fetch('/api/user')
       .then(r => r.json())
@@ -104,6 +127,7 @@ export default function AdminPage() {
         loadGameStatus();
         loadRecallTexts();
         loadTournaments();
+        loadCourses();
       })
       .catch(() => router.replace('/dashboard'));
   }, [router]);
@@ -133,6 +157,58 @@ export default function AdminPage() {
   }
   function loadTournaments() {
     fetch('/api/admin/tournaments').then(r => r.json()).then(d => setTournaments(d.tournaments ?? [])).catch(() => {});
+  }
+  function loadCourses() {
+    fetch('/api/admin/courses').then(r => r.json()).then(d => setCourses(d.courses ?? [])).catch(() => {});
+  }
+  async function createCourse() {
+    setCCreating(true);
+    const res = await fetch('/api/admin/courses', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: cTitle, description: cDesc, price: Number(cPrice), videoUrl: cVideoUrl, thumbnailUrl: cThumbUrl }),
+    });
+    setCCreating(false);
+    if (res.ok) {
+      setCTitle(''); setCDesc(''); setCPrice('0'); setCVideoUrl(''); setCThumbUrl('');
+      loadCourses();
+    } else {
+      const d = await res.json(); alert(d.error ?? 'Failed');
+    }
+  }
+  async function toggleCourse(id: string, isActive: boolean) {
+    await fetch(`/api/admin/courses/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive }) });
+    loadCourses();
+  }
+  async function deleteCourse(id: string) {
+    if (!confirm('Delete this course and all its questions/purchases? Certificates will be kept.')) return;
+    await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+    if (managingCourse?.id === id) setManagingCourse(null);
+    loadCourses();
+  }
+  async function openManageQuestions(course: AdminCourse) {
+    setManagingCourse(course);
+    const res = await fetch(`/api/admin/courses/${course.id}/questions`);
+    const d = await res.json();
+    setCourseQuestions(d.questions ?? []);
+  }
+  async function addQuestion() {
+    if (!managingCourse || !qText.trim() || qOptions.some(o => !o.trim())) return;
+    setQAdding(true);
+    const res = await fetch(`/api/admin/courses/${managingCourse.id}/questions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questionText: qText, options: qOptions, correctAnswerIndex: qCorrect }),
+    });
+    setQAdding(false);
+    if (res.ok) {
+      setQText(''); setQOptions(['', '', '', '']); setQCorrect(0);
+      const d2 = await fetch(`/api/admin/courses/${managingCourse.id}/questions`).then(r => r.json());
+      setCourseQuestions(d2.questions ?? []);
+    }
+  }
+  async function deleteQuestion(qid: string) {
+    if (!managingCourse) return;
+    await fetch(`/api/admin/courses/${managingCourse.id}/questions/${qid}`, { method: 'DELETE' });
+    setCourseQuestions(p => p.filter(q => q.id !== qid));
   }
   async function uploadRecallFile(file: File, target: 'add' | 'edit' = 'add') {
     if (target === 'add') setRecallUploading(true);
@@ -359,6 +435,7 @@ export default function AdminPage() {
     { key: 'games' as const, label: 'Games' },
     { key: 'send' as const, label: 'Send Money' },
     { key: 'tournaments' as const, label: 'Tournaments' },
+    { key: 'learn' as const, label: 'Learn Hub' },
   ];
 
   const pendingCount = withdrawals.filter(w => w.status === 'pending').length;
@@ -1177,6 +1254,225 @@ export default function AdminPage() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {tab === 'learn' && (
+          <div className="space-y-6">
+            {/* Create Course */}
+            <div className="bg-[#111111] rounded-2xl p-5 space-y-4">
+              <p className="text-white/40 text-xs uppercase tracking-wider">Create Course</p>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Title</label>
+                <input
+                  type="text"
+                  value={cTitle}
+                  onChange={e => setCTitle(e.target.value)}
+                  placeholder="e.g. Poker Strategy Fundamentals"
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
+                />
+              </div>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Description</label>
+                <textarea
+                  value={cDesc}
+                  onChange={e => setCDesc(e.target.value)}
+                  rows={3}
+                  placeholder="Short description of the course..."
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20 resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Price ($)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={cPrice}
+                  onChange={e => setCPrice(e.target.value)}
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-white/20"
+                />
+              </div>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Video URL (YouTube or direct)</label>
+                <input
+                  type="url"
+                  value={cVideoUrl}
+                  onChange={e => setCVideoUrl(e.target.value)}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
+                />
+              </div>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Thumbnail URL</label>
+                <input
+                  type="url"
+                  value={cThumbUrl}
+                  onChange={e => setCThumbUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
+                />
+              </div>
+              <button
+                onClick={createCourse}
+                disabled={cCreating || !cTitle.trim()}
+                className="w-full bg-yellow-400 text-black font-bold py-3 rounded-full text-sm hover:bg-yellow-300 transition-colors disabled:opacity-40"
+              >
+                {cCreating ? 'Creating...' : 'Create Course'}
+              </button>
+            </div>
+
+            {/* Course List */}
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-3">Courses ({courses.length})</p>
+              {courses.length === 0 && (
+                <p className="text-white/20 text-sm text-center py-6">No courses yet — create one above</p>
+              )}
+              <div className="space-y-2">
+                {courses.map(course => {
+                  return (
+                    <div key={course.id} className="bg-[#111111] rounded-2xl overflow-hidden">
+                      <div className="p-4 flex items-start gap-3">
+                        {/* Thumbnail */}
+                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-[#1c1c1c] flex items-center justify-center">
+                          {course.thumbnail_url ? (
+                            <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-white/20 text-xs">No img</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                            <p className="text-white font-bold text-sm truncate">{course.title}</p>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${course.is_active ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/30'}`}>
+                              {course.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          <div className="flex gap-3 text-xs text-white/40">
+                            <span>Price: <span className="text-yellow-400 font-mono">${course.price}</span></span>
+                            <span>Enrolled: <span className="text-white font-mono">{course.purchase_count}</span></span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1.5 shrink-0">
+                          <button
+                            onClick={() => openManageQuestions(course)}
+                            className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors whitespace-nowrap"
+                          >
+                            Questions
+                          </button>
+                          <button
+                            onClick={() => toggleCourse(course.id, !course.is_active)}
+                            className={`text-[10px] font-bold px-3 py-1.5 rounded-full transition-colors ${course.is_active ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}`}
+                          >
+                            {course.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button
+                            onClick={() => deleteCourse(course.id)}
+                            className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Questions Panel */}
+            {managingCourse && (
+              <div className="bg-[#0d0d0d] border border-white/[0.08] rounded-2xl p-5 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/40 text-xs uppercase tracking-wider">Questions for:</p>
+                    <p className="text-white font-bold text-sm mt-0.5">{managingCourse.title}</p>
+                  </div>
+                  <button
+                    onClick={() => { setManagingCourse(null); setCourseQuestions([]); }}
+                    className="text-white/40 hover:text-white text-xs font-bold px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/10 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {/* Existing questions */}
+                {courseQuestions.length === 0 ? (
+                  <p className="text-white/20 text-xs">No questions yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {courseQuestions.map((q, qi) => {
+                      const qOpts = typeof q.options === 'string' ? JSON.parse(q.options as unknown as string) : q.options;
+                      return (
+                        <div key={q.id} className="bg-[#111111] rounded-xl p-4">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <p className="text-white text-sm font-bold">{qi + 1}. {q.question_text}</p>
+                            <button
+                              onClick={() => deleteQuestion(q.id)}
+                              className="text-red-400 text-[10px] font-bold px-2 py-1 rounded-full bg-red-500/10 hover:bg-red-500/20 shrink-0"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            {(qOpts as string[]).map((opt, oi) => (
+                              <p key={oi} className={`text-xs px-3 py-1.5 rounded-lg ${oi === q.correct_answer_index ? 'bg-green-500/15 text-green-400 font-bold' : 'text-white/40'}`}>
+                                {['A', 'B', 'C', 'D'][oi]}. {opt}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Add question form */}
+                <div className="space-y-3 border-t border-white/[0.06] pt-5">
+                  <p className="text-white/40 text-xs uppercase tracking-wider">Add Question</p>
+                  <div>
+                    <label className="text-white/30 text-[10px] uppercase tracking-wider block mb-1">Question Text</label>
+                    <textarea
+                      value={qText}
+                      onChange={e => setQText(e.target.value)}
+                      rows={2}
+                      placeholder="e.g. What is the best starting hand in poker?"
+                      className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-white/20 resize-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    {(['A', 'B', 'C', 'D'] as const).map((letter, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="correctAnswer"
+                            checked={qCorrect === idx}
+                            onChange={() => setQCorrect(idx)}
+                            className="accent-green-400"
+                          />
+                          <span className={`text-xs font-bold w-5 ${qCorrect === idx ? 'text-green-400' : 'text-white/40'}`}>{letter}</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={qOptions[idx]}
+                          onChange={e => setQOptions(p => { const n = [...p]; n[idx] = e.target.value; return n; })}
+                          placeholder={`Option ${letter}`}
+                          className="flex-1 bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-white/20"
+                        />
+                      </div>
+                    ))}
+                    <p className="text-white/20 text-[10px]">Select the radio button next to the correct answer</p>
+                  </div>
+                  <button
+                    onClick={addQuestion}
+                    disabled={qAdding || !qText.trim() || qOptions.some(o => !o.trim())}
+                    className="w-full bg-white text-black font-bold text-sm py-3 rounded-full disabled:opacity-40 hover:bg-gray-100 transition-colors"
+                  >
+                    {qAdding ? 'Adding...' : 'Add Question'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
