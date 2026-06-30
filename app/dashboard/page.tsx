@@ -8,8 +8,10 @@ import Leaderboard from '@/components/Leaderboard';
 interface User {
   username: string;
   email: string;
+  fullName?: string;
   balance: number;
   isAdmin?: boolean;
+  isSubAdmin?: boolean;
   avatarUrl?: string | null;
 }
 
@@ -57,6 +59,9 @@ export default function DashboardPage() {
     });
   }
 
+  const displayName = user?.fullName?.trim()
+    ? user.fullName.trim().split(/\s+/).slice(0, 2).join(' ')
+    : (user?.username ?? '—');
   const initial = user?.username?.[0]?.toUpperCase() ?? '?';
 
   return (
@@ -78,18 +83,18 @@ export default function DashboardPage() {
               </button>
               <div>
                 <p className="text-white/40 text-[10px] tracking-wider leading-none">Welcome back</p>
-                <p className="text-white font-bold text-base leading-tight mt-0.5">{user?.username ?? '—'}</p>
+                <p className="text-white font-bold text-base leading-tight mt-0.5">{displayName}</p>
               </div>
             </div>
 
             {/* Right: admin badge + avatar */}
             <div className="flex items-center gap-2">
-              {user?.isAdmin === true && (
+              {(user?.isAdmin === true || user?.isSubAdmin === true) && (
                 <Link
                   href="/admin"
                   className="bg-yellow-400 text-black text-[10px] font-black px-2.5 py-1 rounded-full tracking-wide hover:bg-yellow-300 transition-colors"
                 >
-                  ADMIN
+                  {user?.isAdmin ? 'ADMIN' : 'SUB-ADMIN'}
                 </Link>
               )}
               <div className="w-9 h-9 rounded-full bg-[#1c1c1c] border border-white/10 overflow-hidden flex items-center justify-center">

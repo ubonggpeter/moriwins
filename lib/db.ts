@@ -234,6 +234,9 @@ export async function initSchema(): Promise<void> {
 
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_available INTEGER NOT NULL DEFAULT 0`; } catch {}
     try { await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'balance'`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name TEXT NOT NULL DEFAULT ''`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_sub_admin BOOLEAN NOT NULL DEFAULT FALSE`; } catch {}
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{}'`; } catch {}
 
     await sql`
       CREATE TABLE IF NOT EXISTS deposits (
@@ -274,12 +277,15 @@ function rowToUser(r: Record<string, unknown>): User {
     balance: Number(r.balance),
     createdAt: (r.created_at as Date).toISOString(),
     isAdmin: r.is_admin === true || r.is_admin === 1,
+    isSubAdmin: r.is_sub_admin === true || r.is_sub_admin === 1,
+    permissions: (r.permissions as Record<string, boolean>) ?? {},
     referralCode: (r.referral_code as string) ?? '',
     referredBy: (r.referred_by as string) ?? null,
     referralEarnings: Number(r.referral_earnings ?? 0),
     referralAvailable: Number(r.referral_available ?? 0),
     totalGameWinnings: Number(r.total_game_winnings ?? 0),
     avatarUrl: (r.avatar_url as string | null) ?? null,
+    fullName: (r.full_name as string) ?? '',
   };
 }
 

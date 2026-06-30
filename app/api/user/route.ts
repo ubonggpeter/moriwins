@@ -17,12 +17,15 @@ export async function GET() {
     id: user.id,
     username: user.username,
     email: user.email,
+    fullName: user.fullName,
     balance: user.balance,
     referralCode: user.referralCode,
     referralEarnings: user.referralEarnings,
     referralAvailable: user.referralAvailable,
     totalGameWinnings: user.totalGameWinnings,
     isAdmin: user.isAdmin === true,
+    isSubAdmin: user.isSubAdmin === true,
+    permissions: user.permissions ?? {},
     avatarUrl: user.avatarUrl ?? null,
   });
 }

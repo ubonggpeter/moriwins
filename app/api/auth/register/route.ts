@@ -40,12 +40,15 @@ export async function POST(request: Request) {
       balance: 0,
       createdAt: new Date().toISOString(),
       isAdmin: false,
+      isSubAdmin: false,
+      permissions: {},
       referralCode,
       referredBy: null,
       referralEarnings: 0,
       referralAvailable: 0,
       totalGameWinnings: 0,
       avatarUrl: null,
+      fullName: '',
     });
 
     // Track referral — bonus is paid when referred user makes their first deposit

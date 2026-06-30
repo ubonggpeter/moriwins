@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Gem, Layers, Brain, Pencil, Upload, Loader2, Check, FileText, Send, X, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
+import LoadingScreen from '@/components/LoadingScreen';
 
 interface AdminUser {
   id: string;
@@ -31,8 +32,9 @@ interface AdminWithdrawal {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn' | 'announce'>('users');
+  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn' | 'announce' | 'subadmins'>('users');
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ isAdmin: boolean; isSubAdmin: boolean; permissions: Record<string, boolean> } | null>(null);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [balanceEdit, setBalanceEdit] = useState<Record<string, string>>({});
@@ -130,6 +132,25 @@ export default function AdminPage() {
   const [aLink, setALink] = useState('');
   const [aAdding, setAAdding] = useState(false);
   const [clearingTournaments, setClearingTournaments] = useState(false);
+
+  // Sub-admin management
+  interface SubAdminUser { id: string; username: string; email: string; permissions: Record<string, boolean>; }
+  const [subAdmins, setSubAdmins] = useState<SubAdminUser[]>([]);
+  const [saEmail, setSaEmail] = useState('');
+  const [saPerms, setSaPerms] = useState<Record<string, boolean>>({});
+  const [saLoading, setSaLoading] = useState(false);
+  const [saMsg, setSaMsg] = useState('');
+
+  const SUB_ADMIN_PERMS = [
+    { key: 'manageUsers', label: 'Manage Users' },
+    { key: 'manageWithdrawals', label: 'Withdrawals' },
+    { key: 'manageSettings', label: 'Settings' },
+    { key: 'manageGames', label: 'Games' },
+    { key: 'sendMoney', label: 'Send Money' },
+    { key: 'manageTournaments', label: 'Tournaments' },
+    { key: 'manageCourses', label: 'Learn Hub' },
+    { key: 'manageAnnouncements', label: 'Announcements' },
+  ];
   const [clearingHistory, setClearingHistory] = useState<'game' | 'transaction' | null>(null);
 
   interface AdminDeposit {
@@ -143,17 +164,20 @@ export default function AdminPage() {
     fetch('/api/user')
       .then(r => r.json())
       .then(d => {
-        if (!d.isAdmin) { router.replace('/dashboard'); return; }
+        if (!d.isAdmin && !d.isSubAdmin) { router.replace('/dashboard'); return; }
+        setCurrentUser({ isAdmin: !!d.isAdmin, isSubAdmin: !!d.isSubAdmin, permissions: d.permissions ?? {} });
         setAuthorized(true);
-        loadUsers();
-        loadWithdrawals();
-        loadSettings();
-        loadGameStatus();
-        loadRecallTexts();
-        loadTournaments();
-        loadCourses();
-        loadAnnouncements();
-        loadDeposits();
+        const p = d.permissions ?? {};
+        if (d.isAdmin || p.manageUsers) loadUsers();
+        if (d.isAdmin || p.manageWithdrawals) loadWithdrawals();
+        if (d.isAdmin || p.manageSettings) loadSettings();
+        if (d.isAdmin || p.manageGames) loadGameStatus();
+        if (d.isAdmin) loadRecallTexts();
+        if (d.isAdmin || p.manageTournaments) loadTournaments();
+        if (d.isAdmin || p.manageCourses) loadCourses();
+        if (d.isAdmin || p.manageAnnouncements) loadAnnouncements();
+        if (d.isAdmin || p.manageWithdrawals) loadDeposits();
+        if (d.isAdmin) loadSubAdmins();
       })
       .catch(() => router.replace('/dashboard'));
   }, [router]);
@@ -193,6 +217,9 @@ export default function AdminPage() {
   function loadAnnouncements() {
     fetch('/api/admin/announcements').then(r => r.json()).then(d => setAnnouncements(d.announcements ?? [])).catch(() => {});
   }
+  function loadSubAdmins() {
+    fetch('/api/admin/sub-admins').then(r => r.json()).then(d => setSubAdmins(d.subAdmins ?? [])).catch(() => {});
+  }
   async function uploadCourseMedia(file: File, type: 'video' | 'thumbnail'): Promise<string | null> {
     const fd = new FormData();
     fd.append('file', file);
@@ -217,6 +244,32 @@ export default function AdminPage() {
       const d = await res.json(); alert(d.error ?? 'Failed');
     }
   }
+  async function saveSubAdmin(grantOrRevoke: boolean) {
+    if (!saEmail.trim()) { setSaMsg('Enter an email address'); return; }
+    setSaLoading(true);
+    setSaMsg('');
+    try {
+      const res = await fetch('/api/admin/sub-admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: saEmail.trim(), isSubAdmin: grantOrRevoke, permissions: grantOrRevoke ? saPerms : {} }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSaMsg(grantOrRevoke ? `${data.username} is now a sub-admin` : `${data.username} sub-admin removed`);
+        setSaEmail('');
+        setSaPerms({});
+        loadSubAdmins();
+      } else {
+        setSaMsg(data.error ?? 'Failed');
+      }
+    } catch {
+      setSaMsg('Network error');
+    } finally {
+      setSaLoading(false);
+    }
+  }
+
   async function addAnnouncement() {
     if (!aTitle.trim()) return;
     setAAdding(true);
@@ -532,13 +585,7 @@ export default function AdminPage() {
     }
   }
 
-  if (authorized === null) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <p className="text-white/30 text-sm">Loading...</p>
-      </div>
-    );
-  }
+  if (authorized === null) return <LoadingScreen />;
 
   const TABS = [
     { key: 'users' as const, label: 'Users' },
@@ -549,7 +596,21 @@ export default function AdminPage() {
     { key: 'tournaments' as const, label: 'Tournaments' },
     { key: 'learn' as const, label: 'Learn Hub' },
     { key: 'announce' as const, label: 'Announcements' },
+    ...(currentUser?.isAdmin ? [{ key: 'subadmins' as const, label: 'Sub-Admins' }] : []),
   ];
+
+  // For sub-admins, filter tabs to only permitted ones
+  const visibleTabs = currentUser?.isAdmin
+    ? TABS
+    : TABS.filter(t => {
+        const p = currentUser?.permissions ?? {};
+        const map: Record<string, string> = {
+          users: 'manageUsers', withdrawals: 'manageWithdrawals', settings: 'manageSettings',
+          games: 'manageGames', send: 'sendMoney', tournaments: 'manageTournaments',
+          learn: 'manageCourses', announce: 'manageAnnouncements',
+        };
+        return p[map[t.key]];
+      });
 
   const pendingCount = withdrawals.filter(w => w.status === 'pending').length;
   const totalBalance = users.reduce((s, u) => s + u.balance, 0);
@@ -583,7 +644,7 @@ export default function AdminPage() {
         </div>
 
         <div className="flex border-b border-white/[0.06] mb-6 overflow-x-auto scrollbar-none">
-          {TABS.map(t => (
+          {visibleTabs.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -1589,9 +1650,8 @@ export default function AdminPage() {
                     placeholder="https://youtube.com/watch?v=... or direct .mp4 URL"
                     className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20" />
                 ) : (
-                  <div>
+                  <div className="relative">
                     <input type="file" accept="video/mp4,video/quicktime,video/webm"
-                      disabled={cVideoUploading}
                       onChange={async e => {
                         const f = e.target.files?.[0];
                         if (!f) return;
@@ -1601,9 +1661,9 @@ export default function AdminPage() {
                         setCVideoUploading(false);
                         e.target.value = '';
                       }}
-                      className="w-full text-white/50 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 disabled:opacity-50"
+                      className="w-full text-white/50 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20"
                     />
-                    {cVideoUploading && <p className="text-yellow-400 text-xs mt-1">Uploading video…</p>}
+                    {cVideoUploading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-400 animate-spin" />}
                     {cVideoUrl && !cVideoUploading && <p className="text-green-400 text-xs mt-1 truncate">✓ {cVideoUrl}</p>}
                   </div>
                 )}
@@ -1625,9 +1685,8 @@ export default function AdminPage() {
                     placeholder="https://example.com/image.jpg"
                     className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20" />
                 ) : (
-                  <div>
+                  <div className="relative">
                     <input type="file" accept="image/jpeg,image/png,image/webp,image/gif"
-                      disabled={cThumbUploading}
                       onChange={async e => {
                         const f = e.target.files?.[0];
                         if (!f) return;
@@ -1637,9 +1696,9 @@ export default function AdminPage() {
                         setCThumbUploading(false);
                         e.target.value = '';
                       }}
-                      className="w-full text-white/50 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 disabled:opacity-50"
+                      className="w-full text-white/50 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20"
                     />
-                    {cThumbUploading && <p className="text-yellow-400 text-xs mt-1">Uploading image…</p>}
+                    {cThumbUploading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-400 animate-spin" />}
                     {cThumbUrl && !cThumbUploading && (
                       <div className="mt-2 flex items-center gap-2">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1896,6 +1955,102 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {tab === 'subadmins' && (
+          <div className="space-y-4">
+            <div className="bg-[#111111] rounded-2xl p-5">
+              <p className="text-white font-bold text-sm mb-4">Grant Sub-Admin Access</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-white/40 text-xs uppercase tracking-wider block mb-1.5">User Email</label>
+                  <input
+                    type="email"
+                    value={saEmail}
+                    onChange={e => setSaEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-white/20 placeholder:text-white/20"
+                  />
+                </div>
+                <div>
+                  <p className="text-white/40 text-xs uppercase tracking-wider mb-2">Permissions</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SUB_ADMIN_PERMS.map(p => (
+                      <label key={p.key} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!saPerms[p.key]}
+                          onChange={e => setSaPerms(prev => ({ ...prev, [p.key]: e.target.checked }))}
+                          className="accent-yellow-400"
+                        />
+                        <span className="text-white/70 text-xs">{p.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                {saMsg && (
+                  <p className={`text-xs px-3 py-2 rounded-xl ${saMsg.includes('now') ? 'text-green-400 bg-green-500/10' : saMsg.includes('removed') ? 'text-yellow-400 bg-yellow-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                    {saMsg}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => saveSubAdmin(true)}
+                    disabled={saLoading || !saEmail.trim()}
+                    className="flex-1 bg-yellow-400 text-black font-bold py-2.5 rounded-full text-sm disabled:opacity-40"
+                  >
+                    {saLoading ? 'Saving...' : 'Grant Access'}
+                  </button>
+                  <button
+                    onClick={() => saveSubAdmin(false)}
+                    disabled={saLoading || !saEmail.trim()}
+                    className="flex-1 bg-red-500/20 text-red-400 font-bold py-2.5 rounded-full text-sm disabled:opacity-40"
+                  >
+                    Revoke Access
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {subAdmins.length > 0 && (
+              <div className="bg-[#111111] rounded-2xl p-5">
+                <p className="text-white font-bold text-sm mb-3">Current Sub-Admins ({subAdmins.length})</p>
+                <div className="space-y-3">
+                  {subAdmins.map(sa => (
+                    <div key={sa.id} className="bg-[#1a1a1a] rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-white text-sm font-bold">{sa.username}</p>
+                        <button
+                          onClick={async () => {
+                            await fetch('/api/admin/sub-admins', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ email: sa.email, isSubAdmin: false, permissions: {} }),
+                            });
+                            loadSubAdmins();
+                          }}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                      <p className="text-white/30 text-xs mb-2">{sa.email}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {SUB_ADMIN_PERMS.filter(p => sa.permissions[p.key]).map(p => (
+                          <span key={p.key} className="text-[10px] bg-yellow-400/10 text-yellow-400 px-2 py-0.5 rounded-full font-medium">
+                            {p.label}
+                          </span>
+                        ))}
+                        {SUB_ADMIN_PERMS.filter(p => sa.permissions[p.key]).length === 0 && (
+                          <span className="text-white/20 text-[10px]">No permissions</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -6,12 +6,15 @@ export interface User {
   balance: number;
   createdAt: string;
   isAdmin: boolean;
+  isSubAdmin: boolean;
+  permissions: Record<string, boolean>;
   referralCode: string;
   referredBy: string | null;
   referralEarnings: number;
   referralAvailable: number;
   totalGameWinnings: number;
   avatarUrl: string | null;
+  fullName: string;
 }
 
 export interface MinesGame {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Trophy, ChevronLeft, Award } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
+import LoadingScreen from '@/components/LoadingScreen';
 
 interface Certificate {
   id: string;
@@ -34,13 +35,7 @@ export default function CertificatesPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <p className="text-white/30 text-sm">Loading...</p>
-      </div>
-    );
-  }
+  if (loading) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-black pb-28 md:pb-10 md:pt-14">

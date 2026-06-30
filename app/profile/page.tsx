@@ -6,6 +6,7 @@ import BottomNav from '@/components/BottomNav';
 interface User {
   username: string;
   email: string;
+  fullName: string;
   balance: number;
   totalGameWinnings: number;
   referralEarnings: number;
@@ -46,6 +47,12 @@ export default function ProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarMsg, setAvatarMsg] = useState('');
 
+  // full name state
+  const [nameInput, setNameInput] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameMsg, setNameMsg] = useState('');
+  const [nameOk, setNameOk] = useState(false);
+
   // change-password state
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
   const [pwLoading, setPwLoading] = useState(false);
@@ -59,6 +66,7 @@ export default function ProfilePage() {
         if (d.username) {
           setUser(d);
           setAvatarUrl(d.avatarUrl ?? null);
+          setNameInput(d.fullName ?? '');
         }
       })
       .catch(() => {});
@@ -95,6 +103,32 @@ export default function ProfilePage() {
     } finally {
       setAvatarUploading(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function handleSaveName(e: React.FormEvent) {
+    e.preventDefault();
+    setNameSaving(true);
+    setNameMsg('');
+    setNameOk(false);
+    try {
+      const res = await fetch('/api/user/name', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName: nameInput }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNameOk(true);
+        setNameMsg('Name updated!');
+        setUser(u => u ? { ...u, fullName: data.fullName } : u);
+      } else {
+        setNameMsg(data.error ?? 'Failed to save name');
+      }
+    } catch {
+      setNameMsg('Network error — please try again.');
+    } finally {
+      setNameSaving(false);
     }
   }
 
@@ -225,6 +259,36 @@ export default function ProfilePage() {
               <span className="text-green-400 text-sm font-medium">Active</span>
             </div>
           </div>
+        </div>
+
+        {/* Full Name */}
+        <div className="bg-[#111111] rounded-2xl p-5 mb-4">
+          <p className="text-white font-bold text-sm mb-4">Display Name</p>
+          <form onSubmit={handleSaveName} className="space-y-3">
+            <div>
+              <label className="text-white/40 text-xs uppercase tracking-wider block mb-1.5">Full Name</label>
+              <input
+                type="text"
+                maxLength={100}
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                placeholder="First and last name"
+                className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-white/20 placeholder:text-white/20"
+              />
+            </div>
+            {nameMsg && (
+              <p className={`text-xs px-4 py-3 rounded-xl border ${nameOk ? 'text-green-400 bg-green-500/10 border-green-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20'}`}>
+                {nameMsg}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={nameSaving}
+              className="w-full bg-white text-black font-bold py-3.5 rounded-full text-sm disabled:opacity-40 mt-1"
+            >
+              {nameSaving ? 'Saving...' : 'Save Name'}
+            </button>
+          </form>
         </div>
 
         {/* Change Password */}
