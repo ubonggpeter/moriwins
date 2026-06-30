@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       username,
       email,
       passwordHash,
-      balance: 1000,
+      balance: 0,
       createdAt: new Date().toISOString(),
       isAdmin: false,
       referralCode,
@@ -47,12 +47,12 @@ export async function POST(request: Request) {
       avatarUrl: null,
     });
 
-    // Handle referral bonus — ref param is the referrer's unique referral code
+    // Track referral — bonus is paid when referred user makes their first deposit
     if (incomingRef) {
       const referrer = await getUserByReferralCode(String(incomingRef).toUpperCase());
       if (referrer && referrer.id !== userId) {
-        await sql`UPDATE users SET balance = balance + 50, referral_earnings = referral_earnings + 50 WHERE id = ${referrer.id}`;
-        await sql`INSERT INTO referrals (id, referrer_id, referred_id, bonus_paid) VALUES (${uuidv4()}, ${referrer.id}, ${userId}, 50)`;
+        await sql`UPDATE users SET referred_by = ${referrer.id} WHERE id = ${userId}`;
+        await sql`INSERT INTO referrals (id, referrer_id, referred_id, bonus_paid) VALUES (${uuidv4()}, ${referrer.id}, ${userId}, 0)`;
       }
     }
 

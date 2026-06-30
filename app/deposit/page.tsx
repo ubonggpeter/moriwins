@@ -131,14 +131,14 @@ export default function DepositPage() {
             <div className="flex justify-center mb-4"><Wrench size={40} className="text-white/30" /></div>
             <h2 className="text-xl font-black tracking-widest text-white">COMING SOON</h2>
             <p className="text-white/40 text-sm leading-relaxed">
-              Payment processing is not yet connected. This is a demo platform —
-              you start with $1,000 in free credits.
+              Automatic payment processing is coming soon. To deposit funds now,
+              contact the admin with your deposit amount and they will credit your account.
             </p>
             <div className="bg-yellow-400/10 border border-yellow-400/15 rounded-xl p-4 mt-2">
               <p className="text-yellow-400 text-xs font-mono">
                 Requested: <span className="font-bold">${amount}</span>
               </p>
-              <p className="text-yellow-400/50 text-xs mt-1">This feature will be live soon!</p>
+              <p className="text-yellow-400/50 text-xs mt-1">Send proof of payment to the admin to get credited.</p>
             </div>
             <button
               onClick={() => setSubmitted(false)}

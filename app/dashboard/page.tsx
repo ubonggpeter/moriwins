@@ -120,7 +120,7 @@ export default function DashboardPage() {
                     <span className="text-white font-black text-sm">{referral.totalReferrals}</span>
                     <span className="text-white/30 text-[10px]">refs</span>
                     <span className="text-green-400 font-black text-sm font-mono">${referral.referralEarnings.toLocaleString()}</span>
-                    <span className="bg-green-500/15 text-green-400 text-[10px] font-black px-2 py-0.5 rounded-full">+$50</span>
+                    <span className="bg-green-500/15 text-green-400 text-[10px] font-black px-2 py-0.5 rounded-full">+50%</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

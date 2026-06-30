@@ -44,6 +44,18 @@ export async function POST(request: Request) {
 
     await sql`UPDATE users SET balance = balance + ${amt} WHERE id = ${user.id as string}`;
     credited.push({ email: user.email as string, username: user.username as string, amount: amt });
+
+    // Pay referral bonus (50% of credited amount) on the referred user's first credit
+    const [referral] = await sql`
+      SELECT id, referrer_id FROM referrals WHERE referred_id = ${user.id as string} AND bonus_paid = 0
+    `;
+    if (referral) {
+      const bonus = Math.floor(amt * 0.5);
+      if (bonus > 0) {
+        await sql`UPDATE users SET balance = balance + ${bonus}, referral_earnings = referral_earnings + ${bonus} WHERE id = ${referral.referrer_id as string}`;
+        await sql`UPDATE referrals SET bonus_paid = ${bonus} WHERE id = ${referral.id as string}`;
+      }
+    }
   }
 
   return NextResponse.json({ credited, notFound });
