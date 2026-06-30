@@ -52,12 +52,12 @@ export async function PATCH(request: Request) {
   if (minesStartingLives !== undefined) {
     const v = Math.floor(Number(minesStartingLives));
     if (!v || v < 1) return NextResponse.json({ error: 'Mines starting lives must be at least 1' }, { status: 400 });
-    await setSetting('mines_starting_lives', String(Math.min(10, v)));
+    await setSetting('mines_starting_lives', String(v));
   }
   if (memoryStartingLives !== undefined) {
     const v = Math.floor(Number(memoryStartingLives));
     if (!v || v < 1) return NextResponse.json({ error: 'Memory starting lives must be at least 1' }, { status: 400 });
-    await setSetting('memory_starting_lives', String(Math.min(10, v)));
+    await setSetting('memory_starting_lives', String(v));
   }
 
   return NextResponse.json({ success: true });

@@ -458,13 +458,15 @@ export default function AdminPage() {
     loadRecallTexts();
   }
 
-  async function saveStartingLives(game: 'mines' | 'memory') {
-    const lives = game === 'mines' ? minesStartingLives : memoryStartingLives;
+  async function saveStartingLives(game: 'mines' | 'memory', explicitValue?: number) {
+    const lives = explicitValue ?? (game === 'mines' ? minesStartingLives : memoryStartingLives);
     if (!lives || lives < 1) {
       setLivesError(`${game === 'mines' ? 'Mines' : 'Memory'} starting lives must be at least 1`);
       return;
     }
     setLivesError(null);
+    if (game === 'mines') setMinesStartingLives(lives);
+    else setMemoryStartingLives(lives);
     const res = await fetch('/api/admin/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -1114,38 +1116,68 @@ export default function AdminPage() {
               {livesError && (
                 <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2">{livesError}</p>
               )}
-              {[
+              {([
                 { key: 'mines' as const, label: 'Mines', desc: 'Lives per game', value: minesStartingLives, set: setMinesStartingLives },
                 { key: 'memory' as const, label: 'Memory', desc: 'Lives per round', value: memoryStartingLives, set: setMemoryStartingLives },
-              ].map(g => {
+              ] as const).map(g => {
                 const isInvalid = !g.value || g.value < 1;
                 return (
-                  <div key={g.key} className="bg-[#111111] rounded-2xl p-4 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-white font-bold text-sm">{g.label}</p>
-                      <p className="text-white/30 text-xs">{g.desc} · min 1, max 10</p>
+                  <div key={g.key} className="bg-[#111111] rounded-2xl p-4 space-y-3">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white font-bold text-sm">{g.label}</p>
+                        <p className="text-white/30 text-xs">{g.desc} · min 1</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-white/40 text-xs">Active:</span>
+                        <span className={`font-black text-sm tabular-nums ${livesSaved === g.key ? 'text-green-400' : 'text-yellow-400'}`}>
+                          {g.value} {g.value === 1 ? 'life' : 'lives'}
+                        </span>
+                        {livesSaved === g.key && <span className="text-green-400 text-xs">✓</span>}
+                      </div>
                     </div>
+
+                    {/* Preset buttons */}
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[1, 2, 3, 4, 5, 10].map(preset => (
+                        <button
+                          key={preset}
+                          onClick={() => saveStartingLives(g.key, preset)}
+                          className={`w-9 h-9 rounded-xl text-sm font-bold transition-all ${
+                            g.value === preset
+                              ? 'bg-yellow-400 text-black'
+                              : 'bg-[#1c1c1c] text-white/60 hover:bg-[#2a2a2a] hover:text-white border border-white/[0.06]'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom input + Save */}
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
                         min={1}
-                        max={10}
                         value={g.value}
                         onChange={e => {
                           setLivesError(null);
                           const v = parseInt(e.target.value);
-                          g.set(isNaN(v) ? 1 : Math.min(10, v));
+                          g.set(isNaN(v) || v < 1 ? 1 : v);
                         }}
-                        className={`w-16 bg-[#1c1c1c] text-white text-sm font-mono text-center rounded-xl px-2 py-2 border focus:outline-none ${isInvalid ? 'border-red-500/60' : 'border-white/[0.08]'}`}
+                        className={`w-20 bg-[#1c1c1c] text-white text-sm font-mono text-center rounded-xl px-2 py-2 border focus:outline-none ${isInvalid ? 'border-red-500/60' : 'border-white/[0.08] focus:border-white/20'}`}
+                        placeholder="Custom"
                       />
+                      <span className="text-white/30 text-xs">custom value</span>
                       <button
                         onClick={() => saveStartingLives(g.key)}
                         disabled={isInvalid}
-                        className={`font-bold text-xs px-4 py-2 rounded-full transition-colors ${
+                        className={`ml-auto font-bold text-xs px-4 py-2 rounded-full transition-colors ${
                           livesSaved === g.key ? 'bg-green-500 text-black' : 'bg-white text-black hover:bg-gray-100 disabled:opacity-30'
                         }`}
                       >
-                        {livesSaved === g.key ? '✓' : 'Save'}
+                        {livesSaved === g.key ? '✓ Saved' : 'Save'}
                       </button>
                     </div>
                   </div>
