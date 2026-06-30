@@ -69,3 +69,28 @@ export async function POST(request: Request) {
   const [t] = await sql`SELECT * FROM tournaments WHERE id = ${id}`;
   return NextResponse.json({ tournament: t });
 }
+
+// DELETE /api/admin/tournaments?scope=completed|all
+export async function DELETE(request: Request) {
+  await initSchema();
+  const admin = await getAdmin();
+  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const { searchParams } = new URL(request.url);
+  const scope = searchParams.get('scope') ?? 'completed';
+
+  if (scope === 'all') {
+    await sql`DELETE FROM tournament_entries`;
+    await sql`DELETE FROM tournaments`;
+  } else {
+    // completed only — delete entries for completed tournaments first, then the tournaments
+    const completed = await sql`SELECT id FROM tournaments WHERE status = 'completed'`;
+    if (completed.length > 0) {
+      const ids = completed.map(r => r.id as string);
+      await sql`DELETE FROM tournament_entries WHERE tournament_id = ANY(${ids}::uuid[])`;
+      await sql`DELETE FROM tournaments WHERE id = ANY(${ids}::uuid[])`;
+    }
+  }
+
+  return NextResponse.json({ cleared: scope });
+}

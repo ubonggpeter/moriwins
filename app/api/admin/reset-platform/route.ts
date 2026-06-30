@@ -48,6 +48,12 @@ export async function POST(request: Request) {
   await sql`DELETE FROM memory_games`;
   await sql`DELETE FROM recall_games`;
 
+  // Clear Learn Hub data (FK order: certificates & purchases before courses)
+  await sql`DELETE FROM certificates`;
+  await sql`DELETE FROM course_purchases`;
+  await sql`DELETE FROM course_questions`;
+  await sql`DELETE FROM courses`;
+
   // Log reset timestamp
   await sql`
     INSERT INTO app_settings (key, value, updated_at)

@@ -235,6 +235,17 @@ export async function initSchema(): Promise<void> {
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_available INTEGER NOT NULL DEFAULT 0`; } catch {}
     try { await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'balance'`; } catch {}
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS feature_announcements (
+        id          UUID        PRIMARY KEY,
+        title       TEXT        NOT NULL,
+        description TEXT        NOT NULL DEFAULT '',
+        link_url    TEXT        NOT NULL DEFAULT '',
+        is_active   BOOLEAN     NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
     schemaInitialized = true;
   } catch (err) {
     console.error('[db] initSchema failed — check DATABASE_URL and Supabase connectivity:', err);

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Gem, Layers, Brain } from 'lucide-react';
+import { Gem, Layers, Brain, X, Menu, ExternalLink } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import Leaderboard from '@/components/Leaderboard';
 
@@ -20,6 +20,14 @@ interface ReferralStats {
   referralEarnings: number;
 }
 
+interface Announcement {
+  id: string;
+  title: string;
+  description: string;
+  link_url: string;
+  created_at: string;
+}
+
 const GAMES = [
   { key: 'mines',  title: 'Mines',       desc: 'Reveal cells and avoid mines',          Icon: Gem,    href: '/games/mines',  tag: 'HIGH RISK', tagColor: 'text-red-400' },
   { key: 'memory', title: 'Memory',      desc: 'Match all pairs to win',                Icon: Layers, href: '/games/memory', tag: 'SKILL',     tagColor: 'text-blue-400' },
@@ -31,6 +39,8 @@ export default function DashboardPage() {
   const [referral, setReferral] = useState<ReferralStats | null>(null);
   const [copied, setCopied] = useState(false);
   const [mutedGames, setMutedGames] = useState<Record<string, boolean>>({});
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/user')
@@ -44,6 +54,10 @@ export default function DashboardPage() {
     fetch('/api/games/status')
       .then(r => r.json())
       .then(d => setMutedGames({ mines: !!d.mines?.muted, memory: !!d.memory?.muted, recall: !!d.recall?.muted }))
+      .catch(() => {});
+    fetch('/api/announcements')
+      .then(r => r.json())
+      .then(d => setAnnouncements(d.announcements ?? []))
       .catch(() => {});
   }, []);
 
@@ -59,13 +73,91 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black pb-28 md:pb-10 md:pt-14">
+
+      {/* Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Left Sidebar Drawer */}
+      <aside
+        className={`fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-[#0e0e0e] border-r border-white/[0.07] z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between px-5 pt-12 pb-4 border-b border-white/[0.07]">
+          <div>
+            <p className="text-white font-black text-base">What&apos;s New</p>
+            <p className="text-white/30 text-xs mt-0.5">Latest updates & features</p>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {announcements.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-white/20 text-sm">No announcements yet</p>
+              <p className="text-white/10 text-xs mt-1">Check back soon!</p>
+            </div>
+          ) : (
+            announcements.map((a, i) => (
+              <div key={a.id} className={`rounded-2xl p-4 ${i === 0 ? 'bg-yellow-400/8 border border-yellow-400/15' : 'bg-[#161616]'}`}>
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <p className={`font-bold text-sm ${i === 0 ? 'text-yellow-400' : 'text-white'}`}>{a.title}</p>
+                  {i === 0 && <span className="text-[9px] font-black text-yellow-400 bg-yellow-400/15 px-1.5 py-0.5 rounded-full shrink-0">NEW</span>}
+                </div>
+                {a.description && (
+                  <p className="text-white/40 text-xs leading-relaxed mb-2">{a.description}</p>
+                )}
+                <div className="flex items-center justify-between">
+                  <p className="text-white/20 text-[10px]">{new Date(a.created_at).toLocaleDateString()}</p>
+                  {a.link_url && (
+                    <Link
+                      href={a.link_url}
+                      onClick={() => setSidebarOpen(false)}
+                      className="text-yellow-400 text-[10px] font-bold flex items-center gap-1 hover:text-yellow-300"
+                    >
+                      Learn more <ExternalLink size={10} />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="px-4 pb-8 pt-3 border-t border-white/[0.07]">
+          <p className="text-white/15 text-[10px] text-center">MoriWins Platform</p>
+        </div>
+      </aside>
+
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
         <div className="flex items-center justify-between pt-10 md:pt-8 pb-6">
-          <div>
-            <p className="text-white/40 text-xs tracking-wider">Welcome back</p>
-            <p className="text-white font-bold text-lg md:text-xl mt-0.5">{user?.username ?? '—'}</p>
+          <div className="flex items-center gap-3">
+            {/* Hamburger toggle */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="relative w-9 h-9 rounded-full bg-[#1c1c1c] border border-white/[0.08] flex items-center justify-center text-white/60 hover:text-white hover:bg-[#222] transition-colors"
+            >
+              <Menu size={16} />
+              {announcements.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full" />
+              )}
+            </button>
+            <div>
+              <p className="text-white/40 text-xs tracking-wider">Welcome back</p>
+              <p className="text-white font-bold text-lg md:text-xl mt-0.5">{user?.username ?? '—'}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {user?.isAdmin === true && (

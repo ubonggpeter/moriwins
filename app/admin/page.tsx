@@ -31,7 +31,7 @@ interface AdminWithdrawal {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn'>('users');
+  const [tab, setTab] = useState<'users' | 'withdrawals' | 'settings' | 'games' | 'send' | 'tournaments' | 'learn' | 'announce'>('users');
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -108,6 +108,10 @@ export default function AdminPage() {
   const [cPrice, setCPrice] = useState('0');
   const [cVideoUrl, setCVideoUrl] = useState('');
   const [cThumbUrl, setCThumbUrl] = useState('');
+  const [cVideoMode, setCVideoMode] = useState<'url' | 'upload'>('url');
+  const [cThumbMode, setCThumbMode] = useState<'url' | 'upload'>('url');
+  const [cVideoUploading, setCVideoUploading] = useState(false);
+  const [cThumbUploading, setCThumbUploading] = useState(false);
   const [cCreating, setCCreating] = useState(false);
   const [managingCourse, setManagingCourse] = useState<AdminCourse | null>(null);
   const [courseQuestions, setCourseQuestions] = useState<CourseQuestion[]>([]);
@@ -115,6 +119,16 @@ export default function AdminPage() {
   const [qOptions, setQOptions] = useState(['', '', '', '']);
   const [qCorrect, setQCorrect] = useState(0);
   const [qAdding, setQAdding] = useState(false);
+
+  interface Announcement {
+    id: string; title: string; description: string; link_url: string; is_active: boolean; created_at: string;
+  }
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [aTitle, setATitle] = useState('');
+  const [aDesc, setADesc] = useState('');
+  const [aLink, setALink] = useState('');
+  const [aAdding, setAAdding] = useState(false);
+  const [clearingTournaments, setClearingTournaments] = useState(false);
 
   useEffect(() => {
     fetch('/api/user')
@@ -129,6 +143,7 @@ export default function AdminPage() {
         loadRecallTexts();
         loadTournaments();
         loadCourses();
+        loadAnnouncements();
       })
       .catch(() => router.replace('/dashboard'));
   }, [router]);
@@ -162,6 +177,18 @@ export default function AdminPage() {
   function loadCourses() {
     fetch('/api/admin/courses').then(r => r.json()).then(d => setCourses(d.courses ?? [])).catch(() => {});
   }
+  function loadAnnouncements() {
+    fetch('/api/admin/announcements').then(r => r.json()).then(d => setAnnouncements(d.announcements ?? [])).catch(() => {});
+  }
+  async function uploadCourseMedia(file: File, type: 'video' | 'thumbnail'): Promise<string | null> {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('type', type);
+    const res = await fetch('/api/admin/courses/upload-media', { method: 'POST', body: fd });
+    if (!res.ok) { const d = await res.json(); alert(d.error ?? 'Upload failed'); return null; }
+    const d = await res.json();
+    return d.url as string;
+  }
   async function createCourse() {
     setCCreating(true);
     const res = await fetch('/api/admin/courses', {
@@ -171,10 +198,41 @@ export default function AdminPage() {
     setCCreating(false);
     if (res.ok) {
       setCTitle(''); setCDesc(''); setCPrice('0'); setCVideoUrl(''); setCThumbUrl('');
+      setCVideoMode('url'); setCThumbMode('url');
       loadCourses();
     } else {
       const d = await res.json(); alert(d.error ?? 'Failed');
     }
+  }
+  async function addAnnouncement() {
+    if (!aTitle.trim()) return;
+    setAAdding(true);
+    const res = await fetch('/api/admin/announcements', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: aTitle, description: aDesc, linkUrl: aLink }),
+    });
+    setAAdding(false);
+    if (res.ok) { setATitle(''); setADesc(''); setALink(''); loadAnnouncements(); }
+    else { const d = await res.json(); alert(d.error ?? 'Failed'); }
+  }
+  async function toggleAnnouncement(id: string, isActive: boolean) {
+    await fetch(`/api/admin/announcements/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive }) });
+    loadAnnouncements();
+  }
+  async function deleteAnnouncement(id: string) {
+    if (!confirm('Delete this announcement?')) return;
+    await fetch(`/api/admin/announcements/${id}`, { method: 'DELETE' });
+    loadAnnouncements();
+  }
+  async function clearTournamentHistory(scope: 'completed' | 'all') {
+    const msg = scope === 'all'
+      ? 'Delete ALL tournaments (active, upcoming, and completed) and all their entries? This cannot be undone.'
+      : 'Delete all COMPLETED tournaments and their entries?';
+    if (!confirm(msg)) return;
+    setClearingTournaments(true);
+    await fetch(`/api/admin/tournaments?scope=${scope}`, { method: 'DELETE' });
+    setClearingTournaments(false);
+    loadTournaments();
   }
   async function toggleCourse(id: string, isActive: boolean) {
     await fetch(`/api/admin/courses/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive }) });
@@ -437,6 +495,7 @@ export default function AdminPage() {
     { key: 'send' as const, label: 'Send Money' },
     { key: 'tournaments' as const, label: 'Tournaments' },
     { key: 'learn' as const, label: 'Learn Hub' },
+    { key: 'announce' as const, label: 'Announcements' },
   ];
 
   const pendingCount = withdrawals.filter(w => w.status === 'pending').length;
@@ -1222,6 +1281,25 @@ export default function AdminPage() {
               <p className="text-white/20 text-sm text-center py-6">No tournaments yet</p>
             )}
             <div className="space-y-3">
+              {/* Clear History buttons */}
+              {tournaments.some(t => t.status === 'completed') && (
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => clearTournamentHistory('completed')}
+                    disabled={clearingTournaments}
+                    className="flex-1 bg-red-500/15 text-red-400 hover:bg-red-500/25 font-bold text-xs py-2.5 rounded-full transition-colors disabled:opacity-40"
+                  >
+                    {clearingTournaments ? 'Clearing...' : 'Clear Completed History'}
+                  </button>
+                  <button
+                    onClick={() => clearTournamentHistory('all')}
+                    disabled={clearingTournaments}
+                    className="bg-red-500/25 text-red-400 hover:bg-red-500/35 font-bold text-xs px-4 py-2.5 rounded-full transition-colors disabled:opacity-40"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              )}
               {tournaments.map(t => {
                 const endRes = tEndResult[t.id];
                 const statusColor = t.status === 'active' ? 'text-green-400' : t.status === 'upcoming' ? 'text-yellow-400' : 'text-white/30';
@@ -1300,25 +1378,83 @@ export default function AdminPage() {
                   className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-white/20"
                 />
               </div>
+              {/* Video */}
               <div>
-                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Video URL (YouTube or direct)</label>
-                <input
-                  type="url"
-                  value={cVideoUrl}
-                  onChange={e => setCVideoUrl(e.target.value)}
-                  placeholder="https://youtube.com/watch?v=..."
-                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-white/40 text-xs uppercase tracking-wider">Video</label>
+                  <div className="flex gap-1">
+                    {(['url', 'upload'] as const).map(m => (
+                      <button key={m} onClick={() => setCVideoMode(m)}
+                        className={`text-[10px] px-2.5 py-1 rounded-full font-bold transition-colors ${cVideoMode === m ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/50'}`}
+                      >{m === 'url' ? 'Paste URL' : 'Upload File'}</button>
+                    ))}
+                  </div>
+                </div>
+                {cVideoMode === 'url' ? (
+                  <input type="url" value={cVideoUrl} onChange={e => setCVideoUrl(e.target.value)}
+                    placeholder="https://youtube.com/watch?v=... or direct .mp4 URL"
+                    className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20" />
+                ) : (
+                  <div>
+                    <input type="file" accept="video/mp4,video/quicktime,video/webm"
+                      disabled={cVideoUploading}
+                      onChange={async e => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setCVideoUploading(true);
+                        const url = await uploadCourseMedia(f, 'video');
+                        if (url) setCVideoUrl(url);
+                        setCVideoUploading(false);
+                        e.target.value = '';
+                      }}
+                      className="w-full text-white/50 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 disabled:opacity-50"
+                    />
+                    {cVideoUploading && <p className="text-yellow-400 text-xs mt-1">Uploading video…</p>}
+                    {cVideoUrl && !cVideoUploading && <p className="text-green-400 text-xs mt-1 truncate">✓ {cVideoUrl}</p>}
+                  </div>
+                )}
               </div>
+              {/* Thumbnail */}
               <div>
-                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Thumbnail URL</label>
-                <input
-                  type="url"
-                  value={cThumbUrl}
-                  onChange={e => setCThumbUrl(e.target.value)}
-                  placeholder="https://example.com/image.jpg"
-                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-white/40 text-xs uppercase tracking-wider">Thumbnail</label>
+                  <div className="flex gap-1">
+                    {(['url', 'upload'] as const).map(m => (
+                      <button key={m} onClick={() => setCThumbMode(m)}
+                        className={`text-[10px] px-2.5 py-1 rounded-full font-bold transition-colors ${cThumbMode === m ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/50'}`}
+                      >{m === 'url' ? 'Paste URL' : 'Upload File'}</button>
+                    ))}
+                  </div>
+                </div>
+                {cThumbMode === 'url' ? (
+                  <input type="url" value={cThumbUrl} onChange={e => setCThumbUrl(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20" />
+                ) : (
+                  <div>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+                      disabled={cThumbUploading}
+                      onChange={async e => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setCThumbUploading(true);
+                        const url = await uploadCourseMedia(f, 'thumbnail');
+                        if (url) setCThumbUrl(url);
+                        setCThumbUploading(false);
+                        e.target.value = '';
+                      }}
+                      className="w-full text-white/50 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 disabled:opacity-50"
+                    />
+                    {cThumbUploading && <p className="text-yellow-400 text-xs mt-1">Uploading image…</p>}
+                    {cThumbUrl && !cThumbUploading && (
+                      <div className="mt-2 flex items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={cThumbUrl} alt="preview" className="w-12 h-12 rounded-lg object-cover" />
+                        <p className="text-green-400 text-xs truncate">✓ Uploaded</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <button
                 onClick={createCourse}
@@ -1481,6 +1617,91 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === 'announce' && (
+          <div className="space-y-6">
+            {/* Create Announcement */}
+            <div className="bg-[#111111] rounded-2xl p-5 space-y-4">
+              <p className="text-white/40 text-xs uppercase tracking-wider">New Announcement</p>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Title</label>
+                <input
+                  type="text"
+                  value={aTitle}
+                  onChange={e => setATitle(e.target.value)}
+                  placeholder="e.g. New Feature: Live Tournaments"
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
+                />
+              </div>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Description</label>
+                <textarea
+                  value={aDesc}
+                  onChange={e => setADesc(e.target.value)}
+                  rows={3}
+                  placeholder="Brief description shown to users..."
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20 resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider block mb-1">Link URL (optional)</label>
+                <input
+                  type="url"
+                  value={aLink}
+                  onChange={e => setALink(e.target.value)}
+                  placeholder="https://... or /tournaments"
+                  className="w-full bg-[#1a1a1a] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/20"
+                />
+              </div>
+              <button
+                onClick={addAnnouncement}
+                disabled={aAdding || !aTitle.trim()}
+                className="w-full bg-yellow-400 text-black font-bold py-3 rounded-full text-sm hover:bg-yellow-300 transition-colors disabled:opacity-40"
+              >
+                {aAdding ? 'Publishing...' : 'Publish Announcement'}
+              </button>
+            </div>
+
+            {/* List */}
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-3">All Announcements ({announcements.length})</p>
+              {announcements.length === 0 && (
+                <p className="text-white/20 text-sm text-center py-6">No announcements yet</p>
+              )}
+              <div className="space-y-2">
+                {announcements.map(a => (
+                  <div key={a.id} className="bg-[#111111] rounded-2xl p-4 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-white font-bold text-sm truncate">{a.title}</p>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${a.is_active ? 'bg-green-500/20 text-green-400' : 'bg-white/8 text-white/30'}`}>
+                          {a.is_active ? 'Live' : 'Hidden'}
+                        </span>
+                      </div>
+                      {a.description && <p className="text-white/40 text-xs line-clamp-2">{a.description}</p>}
+                      {a.link_url && <p className="text-blue-400/60 text-[10px] mt-0.5 truncate">{a.link_url}</p>}
+                      <p className="text-white/20 text-[10px] mt-1">{new Date(a.created_at).toLocaleString()}</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <button
+                        onClick={() => toggleAnnouncement(a.id, !a.is_active)}
+                        className={`text-[10px] font-bold px-3 py-1.5 rounded-full transition-colors ${a.is_active ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}
+                      >
+                        {a.is_active ? 'Hide' : 'Show'}
+                      </button>
+                      <button
+                        onClick={() => deleteAnnouncement(a.id)}
+                        className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-red-500/15 text-red-400"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
