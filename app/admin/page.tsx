@@ -179,7 +179,7 @@ export default function AdminPage() {
 
   interface MalpracticeLog {
     id: string; gameSessionId: string; gameType: string; triggerType: string;
-    actionTaken: string; createdAt: string; username: string; email: string;
+    actionTaken: string; isFlaggedForReview: boolean; createdAt: string; username: string; email: string;
   }
   const [malpracticeLogs, setMalpracticeLogs] = useState<MalpracticeLog[]>([]);
   const [malpracticeLoading, setMalpracticeLoading] = useState(false);
@@ -2349,48 +2349,76 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === 'malpractice' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-white/40 text-xs uppercase tracking-wider">Malpractice Reports</p>
-              <button
-                onClick={loadMalpractice}
-                disabled={malpracticeLoading}
-                className="text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
-              >
-                {malpracticeLoading ? 'Loading...' : 'Refresh'}
-              </button>
-            </div>
-
-            {malpracticeLogs.length === 0 && !malpracticeLoading && (
-              <p className="text-white/20 text-sm text-center py-8">No malpractice events recorded yet</p>
-            )}
-
-            {malpracticeLogs.map(log => (
-              <div key={log.id} className="bg-[#111111] rounded-2xl p-4">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
+        {tab === 'malpractice' && (() => {
+          const flagged = malpracticeLogs.filter(l => l.isFlaggedForReview);
+          const violations = malpracticeLogs.filter(l => !l.isFlaggedForReview);
+          const renderLog = (log: MalpracticeLog) => (
+            <div key={log.id} className="bg-[#111111] rounded-2xl p-4">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    {log.isFlaggedForReview ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400">
+                        FLAGGED FOR REVIEW
+                      </span>
+                    ) : (
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         log.actionTaken === 'game_ended'
                           ? 'bg-red-500/20 text-red-400'
                           : 'bg-yellow-400/15 text-yellow-400'
                       }`}>
-                        {log.actionTaken === 'game_ended' ? 'GAME ENDED' : log.actionTaken.replace('_', ' ').toUpperCase()}
+                        {log.actionTaken === 'game_ended' ? 'GAME ENDED' : `WARNING ${log.actionTaken.replace('warning_', '')}`}
                       </span>
-                      <span className="text-white/30 text-[10px] uppercase tracking-wider">{log.gameType}</span>
-                    </div>
-                    <p className="text-white text-sm font-bold">{log.username}</p>
-                    <p className="text-white/30 text-xs">{log.email}</p>
+                    )}
+                    <span className="text-white/30 text-[10px] uppercase tracking-wider">{log.gameType || '—'}</span>
                   </div>
-                  <p className="text-white/20 text-xs">{new Date(log.createdAt).toLocaleString()}</p>
+                  <p className="text-white text-sm font-bold">{log.username}</p>
+                  <p className="text-white/30 text-xs">{log.email}</p>
                 </div>
-                <p className="text-white/50 text-xs mt-3 bg-[#1a1a1a] rounded-xl px-3 py-2">{log.triggerType}</p>
-                <p className="text-white/20 text-[10px] mt-1 font-mono">Session: {log.gameSessionId.slice(0, 8)}…</p>
+                <p className="text-white/20 text-xs">{new Date(log.createdAt).toLocaleString()}</p>
               </div>
-            ))}
-          </div>
-        )}
+              <p className="text-white/50 text-xs mt-3 bg-[#1a1a1a] rounded-xl px-3 py-2">{log.triggerType}</p>
+              <p className="text-white/20 text-[10px] mt-1 font-mono">Session: {log.gameSessionId.slice(0, 8)}…</p>
+            </div>
+          );
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-white/40 text-xs uppercase tracking-wider">Malpractice Reports</p>
+                <button onClick={loadMalpractice} disabled={malpracticeLoading}
+                  className="text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-40">
+                  {malpracticeLoading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+
+              {flagged.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-yellow-400 text-[10px] font-bold uppercase tracking-wider">Flagged for Review ({flagged.length})</span>
+                    <div className="flex-1 h-px bg-yellow-400/15" />
+                  </div>
+                  {flagged.map(renderLog)}
+                </div>
+              )}
+
+              {violations.length > 0 && (
+                <div className="space-y-3">
+                  {flagged.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-white/30 text-[10px] font-bold uppercase tracking-wider">Violations ({violations.length})</span>
+                      <div className="flex-1 h-px bg-white/[0.05]" />
+                    </div>
+                  )}
+                  {violations.map(renderLog)}
+                </div>
+              )}
+
+              {malpracticeLogs.length === 0 && !malpracticeLoading && (
+                <p className="text-white/20 text-sm text-center py-8">No malpractice events recorded yet</p>
+              )}
+            </div>
+          );
+        })()}
 
       </div>
       <BottomNav />

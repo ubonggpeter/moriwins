@@ -37,6 +37,7 @@ export async function GET() {
       gameType: r.game_type,
       triggerType: r.trigger_type,
       actionTaken: r.action_taken,
+      isFlaggedForReview: r.action_taken === 'manual_camera_off',
       createdAt: (r.created_at as Date).toISOString(),
       username: r.username,
       email: r.email,
